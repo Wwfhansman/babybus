@@ -1,1 +1,3 @@
-# BabyBus Project\n\nInitial commit
+# BabyBus Project
+
+Remote and local content merged
