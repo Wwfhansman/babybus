@@ -1,6 +1,6 @@
 # 小说生成漫画应用
 
-本项目目标：根据一篇小说自动生成相应漫画。约束：不使用第三方“agent”编排能力，仅允许调用 LLM、各类 AIGC（图像/视频/音频）模型与语音 TTS。当前前端为 Windows 桌面应用（Flutter 方案），后端使用 Python。
+本项目目标：根据一篇小说自动生成相应漫画。约束：不使用第三方“agent”编排能力，仅允许调用 LLM、各类 AIGC（图像/视频/音频）模型与语音 TTS。当前前端为 Windows 桌面应用（Electron + React 方案），后端使用 Python。
 
 
 ## 1. 项目愿景与范围
@@ -9,7 +9,7 @@
 
 ## 2. 整体架构（Windows 桌面，云端 API 优先）
 - 桌面端（Windows）：
-  - 方案：Flutter Windows（Material3 或 fluent_ui，现代视觉与动效强）。
+  - 方案：Electron + React + Vite（electron-vite），采用主进程（Node）+ 预加载（preload）+ 渲染器（React）。
 - 本机服务（Orchestrator）：Python FastAPI，负责任务编排、状态管理与云 API 调用。
 - 云端推理与模型（不训练，仅调用）：
   - LLM：Qwen Cloud（或其他云提供商）。
@@ -25,10 +25,18 @@
 - 文本气泡与排版：从台词生成气泡，自动布局到面板中。
 - 导出：页面（PNG/JPG）、书册（PDF）。
 
-## 4. 桌面端技术选型与理由（Flutter 方案）
-- Flutter（Windows）：
-  - 优点：现代 UI 与动效强；跨平台潜力；体积与性能优于多数 Web 壳；生态稳定。
-  - 风险：需配置 Windows 桌面构建环境（Visual Studio + C++ 工作负载）；部分插件桌面支持差异，需要选型验证。
+## 4. 桌面端技术选型与理由（Electron + React 方案）
+- Electron + React：
+  - 优点：Web 前端研发效率高；桌面能力完整（文件系统/剪贴板/窗口管理/进程）；生态成熟；调试与热更新友好。
+  - 风险：占用内存与体积较 Tauri 略大；需注意安全（IPC 最小暴露、`contextIsolation: true`）。
+- 组件与设计库（建议）：
+  - UI：`Ant Design` 或 `MUI`（按需）；图标：`lucide-react`。
+  - 路由与状态：`react-router-dom`、`zustand`（或 `Redux Toolkit`）。
+  - 网络与工具：`axios`/`fetch`、`immer`、`zod`（参数校验）。
+  - 桌面能力：通过 `preload` 注入受限 API，主进程实现文件读写、调用 Python 等。
+- 安全与隔离：
+  - `BrowserWindow`：`contextIsolation: true`、`nodeIntegration: false`、严格 `webPreferences`。
+  - 仅通过 `ipcRenderer.invoke` 暴露白名单函数，参数校验与路径白名单。
 - 组件与设计库（建议）：
   - 设计与组件：`material3` + 自定义主题（暗/亮）；或 `fluent_ui`（原生 Windows 风格）。
   - 路由与状态：`go_router`、`riverpod`/`bloc`。
@@ -63,27 +71,27 @@
 - 内容安全：过滤违规提示与图像；年龄分级提示。
 - 隐私：本机优先存储；云调用仅上传必要内容；敏感内容加密传输。
 
-## 11. 部署与环境（Windows + Flutter）
-- 运行环境：Windows 10/11；Python 3.10+；Flutter 3.22+；Visual Studio（含“Desktop development with C++”）。
+## 11. 部署与环境（Windows + Electron + React）
+- 运行环境：Windows 10/11；Python 3.10+；Node.js 22+；npm 10+。
 - 开发准备：
-  - `flutter config --enable-windows-desktop`
-  - `flutter doctor`（确保 Windows 构建工具安装完成）
+  - 前端：进入 `desktop/electron` 执行 `npm install`、`npm run dev`（使用 `electron-vite`）。
+  - 后端：FastAPI 服务可独立启动或由主进程子进程拉起。
 - 打包与分发：
-  - Flutter：`flutter build windows` 生成可执行文件；如需安装包可用 `msix` 插件。
-  - 后端：PyInstaller（可选）将 FastAPI 服务打包为可执行；或以独立 Python 环境运行。
-- 启动策略：应用启动时后台拉起 Python 服务（端口冲突检测与恢复）。
+  - Electron：`npm run build:win`（electron-builder 生成安装包/绿色版）。
+  - 后端：可使用 PyInstaller 打包，或独立 Python 环境运行。
+- 启动策略：应用启动时检测并拉起 Python 服务（端口占用重试；子进程生命周期托管）。
 
 ## 12. 开发指南
 - 后端：`pip install -r requirements.txt`；启动：`uvicorn app.main:app --host 127.0.0.1 --port 8787 --reload`。
-- 桌面端（Flutter）：
-  - 初始化与运行：`flutter create app && flutter run -d windows`
-  - 构建与打包：`flutter build windows`（可选 `msix` 发布）
+- 桌面端（Electron + React）：
+  - 初始化与运行：在 `desktop/electron` 执行 `npm install && npm run dev`
+  - 构建与打包：`npm run build:win`
 - 云端配置：在 `.env` 设置 `LLM_PROVIDER`、`LLM_API_KEY`、`IMAGE_API_KEY`、`TTS_API_KEY` 等（仅后端读取）。
 
 ## 13. 目录结构建议
 ```
 project/
-  desktop/      # Flutter Windows 客户端工程
+  desktop/      # Electron + React 客户端工程
   backend/      # Python 服务（FastAPI/云 API 调用编排）
   configs/      # 云服务配置与密钥管理（本机 .env）
   data/         # 输入与中间数据
