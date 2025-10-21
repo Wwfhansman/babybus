@@ -5,7 +5,14 @@ import { electronAPI } from '@electron-toolkit/preload'
 const api = {
   readTextFile: (filePath: string) => ipcRenderer.invoke('fs:readTextFile', filePath),
   invokeBackend: (route: string, payload: unknown) =>
-    ipcRenderer.invoke('backend:invoke', { route, payload })
+    ipcRenderer.invoke('backend:invoke', { route, payload }),
+  listNovels: () => ipcRenderer.invoke('novel:list'),
+  saveNovel: (novel: unknown) => ipcRenderer.invoke('novel:save', novel),
+  updateNovel: (novel: unknown) => ipcRenderer.invoke('novel:update', novel),
+  deleteNovel: (id: string) => ipcRenderer.invoke('novel:delete', id),
+  saveCharacterImage: (payload: { novelId: string; name: string; data: ArrayBuffer | Uint8Array; ext?: string }) => ipcRenderer.invoke('novel:saveCharacterImage', payload),
+  loadImageDataUrl: (path: string) => ipcRenderer.invoke('file:toDataURL', path),
+  deleteCharacterImage: (payload: { novelId: string; imagePath?: string }) => ipcRenderer.invoke('novel:deleteCharacterImage', payload)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

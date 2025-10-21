@@ -3,6 +3,8 @@
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; }
 body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial; }
-button { cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 8px; padding: 8px 12px; }
+button { cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 8px; padding: 8px 12px; -webkit-appearance: none; appearance: none; }
+button.primary { border: none; background: var(--primary); color: white; box-shadow: none; }
+button:focus, button:focus-visible { outline: none; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 input, textarea { font-family: inherit; }

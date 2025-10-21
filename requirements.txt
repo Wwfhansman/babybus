@@ -7,6 +7,8 @@ uvicorn
 python-multipart
 pydantic[dotenv]
 pillow
+python-docx
+
 
 # Volcengine Ark SDK (image/LLM APIs). Includes httpx/anyio as transitive deps.
 volcengine-python-sdk[ark]
