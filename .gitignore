@@ -1,26 +1,41 @@
-# 操作系统文件
+# Local Flutter SDK and tools
+/tools/
+/tools/flutter/
+/tools/flutter.zip
+
+# Flutter build artifacts and tool dirs
+/desktop/build/
+/desktop/.dart_tool/
+/desktop/.metadata
+/desktop/ios/Pods/
+
+# Operating system files
 .DS_Store
 Thumbs.db
 
-# 编辑器目录和文件
-.idea/
+# Editor settings
 .vscode/
+# IntelliJ IDEA: ignore everything except its own .gitignore
+.idea/*
+!.idea/.gitignore
+
+# Swap and temp files
 *.swp
 *.swo
 *~
 
-# Python相关
+# Python artifacts
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 
-# 虚拟环境
+# Python virtual environments
 venv/
 env/
 
-# 测试和覆盖报告
+# Test and coverage
 htmlcov/
 .tox/
 .cache/
@@ -28,26 +43,20 @@ htmlcov/
 .coverage.*
 .pytest_cache/
 
-# 环境变量文件
+# Environment files
 .env
 .env.local
 .env.*.local
 
-# 构建文件
+# Build outputs
 build/
 dist/
 *.egg-info/
 
-# 日志文件
+# Logs
 *.log
 logs/
 
-# 其他
+# PIDs
 *.pid
 *.pid.lock
-*.seed
-*.pid.lock
-
-# IDE 特定文件
-.idea/*
-!.idea/.gitignore  # 只允许.gitignore文件
