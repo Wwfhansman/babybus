@@ -47,11 +47,11 @@ body {
 .view { flex: 1; overflow: auto; }
 
 .create-layout { display: grid; grid-template-columns: 24px 3fr 3fr 4fr; height: calc(100vh - 56px); position: relative; }
-.panel { border-right: 1px solid var(--border); padding: 16px; }
+.panel { border-right: 1px solid var(--border); padding: 16px; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 
 /* 抽屉（点击展开保持、外部点击收回） */
 .novel-drawer { position: relative; height: 100%; }
-.novel-drawer .drawer-content { position: absolute; inset: 0 auto 0 0; width: min(28vw, 420px); min-width: 320px; background: var(--bg-soft); border-right: 1px solid var(--border); padding: 16px 12px 16px 16px; transform: translateX(calc(-100% + 24px)); transition: transform 180ms ease; box-shadow: 0 0 0 rgba(0,0,0,0); }
+.novel-drawer .drawer-content { position: absolute; inset: 0 auto 0 0; width: min(28vw, 420px); min-width: 320px; background: var(--bg-soft); border-right: 1px solid var(--border); padding: 16px 12px 16px 16px; transform: translateX(calc(-100% + 24px)); transition: transform 180ms ease; box-shadow: 0 0 0 rgba(0,0,0,0); display: flex; flex-direction: column; z-index: 50; }
 .novel-drawer.open .drawer-content { transform: translateX(0); box-shadow: 0 8px 24px rgba(0,0,0,0.18); }
 
 /* 抽屉把手：小箭头 + 悬浮提示 */
@@ -67,32 +67,47 @@ body {
 .panel header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .panel h3 { margin: 0; font-size: 16px; }
 .panel .actions button { margin-left: 8px; }
-.primary { background: var(--primary); color: white; border: none; padding: 8px 12px; border-radius: 8px; }
+.primary { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 10px; font-weight: 600; }
 
 /* 面包屑与分页 */
 .breadcrumb { display:flex; align-items:center; gap:6px; font-weight:600; margin-bottom: 8px; }
 .breadcrumb .home { color: var(--primary); cursor:pointer; }
 .breadcrumb .sep { color: var(--text-2); }
 .breadcrumb .current { color: var(--text); }
-.page-tabs { display:flex; gap:8px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 8px; }
-.page-tabs button { padding:4px 8px; border: 1px solid var(--border); background: transparent; color: var(--text-2); border-radius: 6px; }
+.page-tabs { display:flex; gap:8px; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 8px; align-items: center; }
+.page-label { color: var(--text-2); font-size: 12px; }
+.page-select { flex: 0 1 240px; max-width: 260px; padding: 6px 8px; border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 8px; }
+.page-tabs .spacer { flex: 1; }
+.page-tabs .pager { flex-shrink: 0; height: 28px; border-radius: 6px; display:flex; align-items:center; justify-content:center; color: var(--text); }
+.page-tabs .pager:disabled { opacity: 0.5; }
+/* 旧的横向滚动样式保留无影响 */
+.page-tabs .tabs-scroll { display:none; }
+.page-tabs .tabs-scroll { display:flex; gap:8px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; -ms-overflow-style: none; }
+.page-tabs .tabs-scroll::-webkit-scrollbar { height: 8px; }
+.page-tabs .tabs-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.page-tabs button { padding:4px 8px; border: 1px solid var(--border); background: transparent; color: var(--text-2); border-radius: 6px; white-space: nowrap; }
 .page-tabs button.active { background: rgba(107, 140, 255, 0.12); color: var(--text); border-color: var(--primary); }
 
 .novel-tree { overflow: auto; max-height: calc(100% - 44px); }
+.novel-home, .novel-chapters { flex: 1; overflow-y: auto; min-height: 0; }
+.novel-chapters { display: flex; flex-direction: column; }
+.novel-chapters .page-tabs { position: sticky; top: 0; background: var(--bg-soft); z-index: 1; flex-shrink: 0; }
 .novel { margin-bottom: 8px; }
 .novel-title { font-weight: 600; cursor: pointer; padding: 4px 0; }
-.chapters { list-style: none; padding-left: 8px; }
+.chapters { list-style: none; padding-left: 8px; flex: 1; overflow-y: auto; min-height: 0; }
 .chapters li { padding: 6px 8px; cursor: pointer; border-radius: 6px; }
 .chapters li.active { background: rgba(107, 140, 255, 0.18); }
 
-.settings-body, .output-body, .chapter-body { height: calc(100% - 44px); overflow: auto; }
+.settings-body, .output-body { height: calc(100% - 44px); overflow: auto; }
+.chapter-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .storyboard ul { list-style: none; padding: 0; }
 .storyboard li { margin-bottom: 8px; }
 .storyboard input { width: 100%; background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px; }
 
 /* 章节正文样式 */
-.chapter-content { white-space: pre-wrap; background: transparent; border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 220px; color: var(--text-2); }
-.chapter-body .actions { margin-top: 12px; }
+.chapter-content { white-space: pre-wrap; background: transparent; border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 220px; color: var(--text-2); flex: 1; overflow: auto; }
+.chapter-body .actions { margin-top: 12px; flex-shrink: 0; padding: 12px 0; background: var(--bg-soft); border-top: none; box-shadow: 0 -4px 14px rgba(0,0,0,0.08); display: flex; justify-content: flex-end; }
+.chapter-body .actions .primary { border: none; box-shadow: none; outline: none; }
 
 .pages { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .page-skeleton { border: 1px dashed var(--border); border-radius: 12px; height: 160px; display:flex; align-items:center; justify-content:center; color: var(--text-2); }
@@ -114,3 +129,48 @@ body {
 /* 简易动效 */
 .fade-in { animation: fadeIn 260ms ease-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: translateY(0);} }
+
+@media (max-width: 720px) {
+  .chapter-body .actions { padding: 12px; }
+  .chapter-body .actions .primary { width: 100%; }
+  .page-select { flex: 1 1 auto; max-width: none; }
+}
+
+/* 设置按钮与浮态框样式 */
+.novel-home .novel { padding: 6px 0; }
+.novel-home .novel-title { display:flex; align-items:center; justify-content: space-between; gap:8px; cursor:pointer; padding: 6px 8px; border-radius: 8px; }
+.novel-home .novel-title:hover { background: var(--bg); }
+.novel-home .novel-title .icon.settings { border: none; background: transparent; color: var(--text-2); padding: 2px 6px; border-radius: 6px; cursor: pointer; }
+.novel-home .novel-title .icon.settings:hover { color: var(--text); background: var(--bg-soft); }
+
+.novel-settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.22); display:flex; align-items:center; justify-content:center; z-index: 1000; }
+.novel-settings { width: min(560px, 90vw); background: var(--bg); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.18); display:flex; flex-direction: column; }
+.novel-settings header { display:flex; align-items:center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.novel-settings header h4 { margin: 0; font-size: 16px; }
+.novel-settings header .close { border:none; background: transparent; font-size: 20px; line-height: 20px; cursor: pointer; color: var(--text-2); }
+.novel-settings header .close:hover { color: var(--text); }
+.novel-settings .body { padding: 12px 16px; display:flex; flex-direction: column; gap: 12px; }
+.novel-settings .field { display:flex; flex-direction: column; gap:6px; }
+.novel-settings .field > span { color: var(--text-2); font-size: 12px; }
+.novel-settings .field input[type="text"], .novel-settings input[type="file"], .novel-settings input { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 8px; padding: 6px 8px; }
+
+.novel-settings .characters { display:flex; flex-direction: column; gap: 8px; }
+.novel-settings .character-item { display:grid; grid-template-columns: 64px 1fr auto; align-items:center; gap: 10px; padding: 6px 4px; border-bottom: 1px dashed var(--border); }
+.novel-settings .character-item .preview { width: 64px; height:64px; border: 1px solid var(--border); border-radius: 8px; overflow:hidden; display:flex; align-items:center; justify-content:center; background: var(--bg-soft); }
+.novel-settings .character-item .preview img { width: 100%; height: 100%; object-fit: cover; }
+.novel-settings .character-item .preview .placeholder { color: var(--text-2); font-size: 12px; }
+.novel-settings .character-item .meta input { width: 100%; }
+.novel-settings .character-item .danger { border:none; background: #e15241; color: #fff; border-radius: 8px; padding: 6px 10px; }
+
+.novel-settings .character-add { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items:center; }
+
+.novel-settings footer { display:flex; align-items:center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+.novel-settings footer .spacer { flex: 1; }
+.novel-settings footer .danger { border:none; background: #e15241; color: #fff; border-radius: 8px; padding: 8px 12px; }
+.novel-settings footer .primary { padding: 8px 16px; }
+
+/* 小屏优化：按钮整行 */
+@media (max-width: 640px) {
+  .novel-settings { width: 94vw; }
+  .novel-settings .character-item { grid-template-columns: 56px 1fr; grid-template-areas: 'preview meta' 'preview actions'; }
+}

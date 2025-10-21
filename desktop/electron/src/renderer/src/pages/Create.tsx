@@ -1,57 +1,69 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 
 // 简易数据结构与占位数据
 export type Section = { id: string; title: string }
 // 将章节类型扩展为包含正文内容
 export type Chapter = { id: string; title: string; sections: Section[]; content?: string }
-export type Novel = { id: string; title: string; chapters: Chapter[] }
+export type Character = { name: string; imagePath?: string }
+export type Novel = { id: string; title: string; chapters: Chapter[]; characters?: Character[] }
 
-const sampleNovels: Novel[] = [
-  {
-    id: 'novel-1',
-    title: '斗罗大陆',
-    chapters: [
-      { id: 'n1-c1', title: '第一章 XXXX', content: '这里是章节内容示例 A\n\n（占位正文）', sections: [{ id: 'n1-c1-s1', title: '片段 A' }] },
-      { id: 'n1-c2', title: '第二章 XXXX', content: '这里是章节内容示例 B\n\n（占位正文）', sections: [{ id: 'n1-c2-s1', title: '片段 B' }] }
-    ]
-  },
-  {
-    id: 'novel-2',
-    title: '斗破苍穹',
-    chapters: [
-      { id: 'n2-c1', title: '第一章 XXXX', content: '这里是章节内容示例 C\n\n（占位正文）', sections: [{ id: 'n2-c1-s1', title: '片段 A' }] }
-    ]
-  }
-]
+// 移除样例小说：从本地读取
 
-// 章节拆分占位（包含正文）
+// 章节拆分（改进版：支持中文数字、序章/尾声/番外、CHAPTER）
 function splitChaptersFromText(text: string): Chapter[] {
   const lines = text.split(/\r?\n/)
   const chapters: Chapter[] = []
-  let current: Chapter | null = null
   let buf: string[] = []
-  const chapterRegex = /^第.{1,9}[章节卷回].*/
-  lines.forEach((line, i) => {
-    const trimmed = line.trim()
-    const isNew = chapterRegex.test(trimmed) || i === 0
-    if (isNew) {
-      if (current) {
-        current.content = buf.join('\n').trim()
-        chapters.push(current)
-      }
-      current = { id: 'ch-' + (chapters.length + 1), title: trimmed || `章节 ${chapters.length + 1}`, sections: [] }
-      buf = []
-    } else if (current) {
-      buf.push(line)
-      const secId = `s-${current.sections.length + 1}`
-      if (trimmed) current.sections.push({ id: secId, title: trimmed.slice(0, 24) })
-    }
-  })
-  if (current) {
-    (current as Chapter).content = buf.join('\n').trim()
-    chapters.push(current)
+
+  const isHeading = (s: string): boolean => {
+    const t = s.trim()
+    if (!t) return false
+    const patterns = [
+      /^第[一二三四五六七八九十百千零两\d]+[章节卷回]/i,
+      /^(序章|楔子|引子|前言|序言|尾声|终章|番外)(\s|：|:|$)/,
+      /^\s*(CHAPTER|Chapter)\s+\d+/,
+      /^\s*第\s*\d+\s*(章|回|节)/
+    ]
+    return patterns.some((re) => re.test(t))
   }
-  return chapters.length ? chapters : [{ id: 'ch-1', title: '第一章', content: text.slice(0, 800), sections: [{ id: 's-1', title: '片段 1' }] }]
+
+  let current: Chapter | null = null
+  const pushCurrent = () => {
+    if (!current) return
+    current.content = buf.join('\n').trim()
+    chapters.push(current)
+    buf = []
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const trimmed = line.trim()
+    if (isHeading(trimmed)) {
+      // 新章节
+      pushCurrent()
+      current = { id: `ch-${chapters.length + 1}`, title: trimmed || `章节 ${chapters.length + 1}`, sections: [] }
+    } else {
+      // 正文
+      buf.push(line)
+    }
+  }
+
+  // 收尾
+  pushCurrent()
+
+  // 为空则回退为单章
+  if (!chapters.length) {
+    return [{ id: 'ch-1', title: '第一章', content: text.trim(), sections: [] }]
+  }
+
+  // 基于正文粗略生成分镜片段（最多 12 条）
+  chapters.forEach((ch) => {
+    const body = ch.content || ''
+    const parts = body.split(/[。！？!?,，\n]+/).map((s) => s.trim()).filter(Boolean).slice(0, 12)
+    ch.sections = parts.map((t, i) => ({ id: `s-${i + 1}`, title: t.slice(0, 24) || `镜头 ${i + 1}` }))
+  })
+
+  return chapters
 }
 
 const AddNovelDialog: React.FC<{ onClose(): void; onSubmit(n: Novel): void }> = ({ onClose, onSubmit }) => {
@@ -71,24 +83,24 @@ const AddNovelDialog: React.FC<{ onClose(): void; onSubmit(n: Novel): void }> = 
     const reader = new FileReader()
     reader.onload = async () => {
       const content = String(reader.result || '')
-      // 占位：调用后端解析接口（preload->main->backend）
       try {
         await window.api.invokeBackend('novel/parse', { text: content })
       } catch {}
       const chapters = splitChaptersFromText(content)
-      onSubmit({ id: 'novel-' + Date.now(), title: file.name.replace(/\.txt$/i, ''), chapters })
+      const novel: Novel = { id: 'novel-' + Date.now(), title: file.name.replace(/\.txt$/i, ''), chapters }
+      onSubmit(novel)
       onClose()
     }
     reader.readAsText(file, 'utf-8')
   }
 
   const submitText = async () => {
-    // 占位：调用后端解析接口
     try {
       await window.api.invokeBackend('novel/parse', { text })
     } catch {}
     const chapters = splitChaptersFromText(text)
-    onSubmit({ id: 'novel-' + Date.now(), title: '新小说（单章节）', chapters })
+    const novel: Novel = { id: 'novel-' + Date.now(), title: '新小说（单章节）', chapters }
+    onSubmit(novel)
     onClose()
   }
 
@@ -118,32 +130,158 @@ const AddNovelDialog: React.FC<{ onClose(): void; onSubmit(n: Novel): void }> = 
   )
 }
 
+// 新增：小说设置弹框
+const NovelSettingsDialog: React.FC<{
+  novel: Novel
+  onClose(): void
+  onUpdate(n: Novel): void
+  onDelete(id: string): void
+}> = ({ novel, onClose, onUpdate, onDelete }) => {
+  const [title, setTitle] = useState(novel.title)
+  const [characters, setCharacters] = useState<Character[]>(novel.characters || [])
+  const [newCharName, setNewCharName] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [previewUrls, setPreviewUrls] = useState<string[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const urls = await Promise.all((characters || []).map(async (c) => {
+        if (c.imagePath) {
+          try { return await (window as any).api.loadImageDataUrl(c.imagePath) } catch { return '' }
+        }
+        return ''
+      }))
+      if (!cancelled) setPreviewUrls(urls)
+    })()
+    return () => { cancelled = true }
+  }, [characters])
+
+  const handleSave = async () => {
+    const updated: Novel = { ...novel, title, characters }
+    try {
+      // 调用更新接口：主进程会处理重命名与旧文件清理
+      await (window as any).api.updateNovel(updated)
+      onUpdate(updated)
+      onClose()
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!confirm('确定删除该小说？此操作不可撤销！')) return
+    try {
+      await (window as any).api.deleteNovel(novel.id)
+      onDelete(novel.id)
+      onClose()
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const addCharacter = async (file: File | null) => {
+    if (!newCharName.trim()) return
+    if (!file) return
+    setUploading(true)
+    try {
+      const buf = await file.arrayBuffer()
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase()
+      const res = await (window as any).api.saveCharacterImage({ novelId: novel.id, name: newCharName.trim(), data: buf, ext })
+      const entry: Character = { name: newCharName.trim(), imagePath: String(res?.path || '') }
+      setCharacters((prev) => [...prev, entry])
+      setNewCharName('')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const removeCharacter = async (idx: number) => {
+    const target = characters[idx]
+    try {
+      if (target?.imagePath) {
+        await (window as any).api.deleteCharacterImage({ novelId: novel.id, imagePath: target.imagePath })
+      }
+    } catch (e) {
+      console.warn('删除人物图片失败', e)
+    }
+    setCharacters((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  return (
+    <div className="novel-settings-overlay" onClick={onClose}>
+      <div className="novel-settings" onClick={(e) => e.stopPropagation()}>
+        <header>
+          <h4>小说设置</h4>
+          <button className="close" onClick={onClose}>×</button>
+        </header>
+        <div className="body">
+          <label className="field">
+            <span>小说名称</span>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="输入新的小说名称" />
+          </label>
+
+          <div className="field">
+            <span>人物参考图</span>
+            <div className="characters">
+              {(characters || []).map((c, idx) => (
+                <div key={idx} className="character-item">
+                  <div className="preview">
+-                    {c.imagePath ? (<img src={(c.imagePath.startsWith('file://') ? c.imagePath : ('file://' + c.imagePath))} alt={c.name} />) : (<div className="placeholder">无图</div>)}
++                    {previewUrls[idx] ? (<img src={previewUrls[idx]} alt={c.name} />) : (<div className="placeholder">无图</div>)}
+                  </div>
+                  <div className="meta">
+                    <input value={c.name} onChange={(e) => {
+                      const v = e.target.value
+                      setCharacters((prev) => prev.map((item, i) => i === idx ? { ...item, name: v } : item))
+                    }} />
+                  </div>
+                  <button className="danger" onClick={() => removeCharacter(idx)}>删除</button>
+                </div>
+              ))}
+              <div className="character-add">
+                <input value={newCharName} onChange={(e) => setNewCharName(e.target.value)} placeholder="角色名" />
+                <input type="file" accept="image/*" disabled={!newCharName.trim() || uploading} onChange={(e) => addCharacter(e.target.files?.[0] || null)} />
+              </div>
+            </div>
+          </div>
+        </div>
+        <footer>
+          <button className="danger" onClick={handleDelete}>删除小说</button>
+          <div className="spacer" />
+          <button className="primary" onClick={handleSave} disabled={!title.trim()}>保存</button>
+        </footer>
+      </div>
+    </div>
+  )
+}
+
 const CreatePage: React.FC = () => {
-  const [novels, setNovels] = useState<Novel[]>(sampleNovels)
-  const [selectedNovelId, setSelectedNovelId] = useState<string | null>(novels[0]?.id || null)
+  const [novels, setNovels] = useState<Novel[]>([])
+  const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null)
   const selectedNovel = useMemo(() => novels.find((n) => n.id === selectedNovelId) || null, [novels, selectedNovelId])
-  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(selectedNovel?.chapters[0]?.id || null)
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null)
   const selectedChapter = useMemo(() => selectedNovel?.chapters.find((c) => c.id === selectedChapterId) || null, [selectedNovel, selectedChapterId])
   const [showAdd, setShowAdd] = useState(false)
-  // 分级显示：当前展开的小说（仅展开一个）
-  const [openNovelId, setOpenNovelId] = useState<string | null>(selectedNovelId)
-  // 抽屉展开保持状态（点击把手展开，外部点击收回）
   const [drawerOpen, setDrawerOpen] = useState(false)
-  // 新增：分级浏览与分页状态
   const [browseLevel, setBrowseLevel] = useState<'home' | 'novel'>('home')
   const [browseNovelId, setBrowseNovelId] = useState<string | null>(null)
   const [chapterPageIdx, setChapterPageIdx] = useState(0)
   const PER_PAGE = 50
   const browseNovel = useMemo(() => novels.find(n => n.id === browseNovelId) || null, [novels, browseNovelId])
-  // 识别分镜加载态
   const [recognizing, setRecognizing] = useState(false)
+  const [settingsForId, setSettingsForId] = useState<string | null>(null)
 
-  // 本地回退：简单将正文按句号/换行拆分为镜头标题
-  function splitIntoShots(text: string): Section[] {
-    const parts = text.split(/[。！？!?\n]+/).map(s => s.trim()).filter(Boolean)
-    const limited = parts.slice(0, 12)
-    return limited.length ? limited.map((t, i) => ({ id: `s-${i+1}`, title: t.slice(0, 24) || `镜头 ${i+1}` })) : [{ id: 's-1', title: '镜头 1' }]
-  }
+  // 初始化：从本地读取小说列表
+  useEffect(() => {
+    (async () => {
+      try {
+        const list = await window.api.listNovels()
+        setNovels(list as unknown as Novel[])
+        // 初次进入不自动选择小说与章节，保持为空等待手动选择
+      } catch {}
+    })()
+  }, [])
 
   async function recognizeStoryboard() {
     if (!selectedChapter || !selectedNovelId) return
@@ -155,13 +293,13 @@ const CreatePage: React.FC = () => {
       const sections: Section[] | null = Array.isArray(res?.sections)
         ? res.sections.map((item: any, idx: number) => ({ id: `s-${idx+1}`, title: typeof item === 'string' ? item : (item?.title || `镜头 ${idx+1}`) }))
         : null
-      const finalSections = sections && sections.length ? sections : splitIntoShots(text)
+      const finalSections = sections && sections.length ? sections : (text.split(/[。！？!?\n]+/).map(s => s.trim()).filter(Boolean).slice(0, 12).map((t, i) => ({ id: `s-${i+1}`, title: t.slice(0, 24) || `镜头 ${i+1}` })))
       setNovels(prev => prev.map(n => n.id === selectedNovelId ? ({
         ...n,
         chapters: n.chapters.map(ch => ch.id === selectedChapter.id ? ({ ...ch, sections: finalSections }) : ch)
       }) : n))
     } catch (e) {
-      const fallback = splitIntoShots(text)
+      const fallback = text.split(/[。！？!?\n]+/).map(s => s.trim()).filter(Boolean).slice(0, 12).map((t, i) => ({ id: `s-${i+1}`, title: t.slice(0, 24) || `镜头 ${i+1}` }))
       setNovels(prev => prev.map(n => n.id === selectedNovelId ? ({
         ...n,
         chapters: n.chapters.map(ch => ch.id === selectedChapter.id ? ({ ...ch, sections: fallback }) : ch)
@@ -214,6 +352,9 @@ const CreatePage: React.FC = () => {
                     }}
                   >
                     {n.title}
+                    <button className="icon settings" title="设置" onClick={(e) => { e.stopPropagation(); setSettingsForId(n.id); }}>
+                      ⚙️
+                    </button>
                   </div>
                 </div>
               ))}
@@ -221,19 +362,38 @@ const CreatePage: React.FC = () => {
           ) : (
             <div className="novel-chapters">
               <div className="page-tabs">
-                {Array.from({ length: Math.max(1, Math.ceil((browseNovel?.chapters.length || 0) / PER_PAGE)) }).map((_, i) => {
-                  const start = i * PER_PAGE + 1
-                  const end = Math.min((i + 1) * PER_PAGE, browseNovel?.chapters.length || 0)
-                  return (
-                    <button
-                      key={i}
-                      className={i === chapterPageIdx ? 'active' : ''}
-                      onClick={() => setChapterPageIdx(i)}
-                    >
-                      {start}-{end}
-                    </button>
-                  )
-                })}
+                <label className="page-label" htmlFor="page-select">章节范围</label>
+                <select
+                  id="page-select"
+                  className="page-select"
+                  value={chapterPageIdx}
+                  onChange={(e) => setChapterPageIdx(Number(e.target.value))}
+                >
+                  {Array.from({ length: Math.max(1, Math.ceil((browseNovel?.chapters.length || 0) / PER_PAGE)) }).map((_, i) => {
+                    const start = i * PER_PAGE + 1
+                    const end = Math.min((i + 1) * PER_PAGE, browseNovel?.chapters.length || 0)
+                    return (
+                      <option key={i} value={i}>{start}-{end}</option>
+                    )
+                  })}
+                </select>
+                <div className="spacer" />
+                <button
+                  className="pager prev"
+                  aria-label="上一页"
+                  disabled={chapterPageIdx <= 0}
+                  onClick={() => setChapterPageIdx(Math.max(0, chapterPageIdx - 1))}
+                >
+                  上一页
+                </button>
+                <button
+                  className="pager next"
+                  aria-label="下一页"
+                  disabled={chapterPageIdx >= Math.max(1, Math.ceil((browseNovel?.chapters.length || 0) / PER_PAGE)) - 1}
+                  onClick={() => setChapterPageIdx(Math.min(Math.max(1, Math.ceil((browseNovel?.chapters.length || 0) / PER_PAGE)) - 1, chapterPageIdx + 1))}
+                >
+                  下一页
+                </button>
               </div>
               <ul className="chapters">
                 {(browseNovel?.chapters || []).slice(chapterPageIdx * PER_PAGE, chapterPageIdx * PER_PAGE + PER_PAGE).map((ch) => (
@@ -243,7 +403,7 @@ const CreatePage: React.FC = () => {
                     onClick={() => {
                       setSelectedNovelId(browseNovel?.id || null)
                       setSelectedChapterId(ch.id)
-                      setDrawerOpen(false) // 退出小说选择模块
+                      setDrawerOpen(false)
                     }}
                   >
                     {ch.title}
@@ -322,7 +482,32 @@ const CreatePage: React.FC = () => {
       {showAdd && (
         <AddNovelDialog
           onClose={() => setShowAdd(false)}
-          onSubmit={(n) => setNovels((prev) => [n, ...prev])}
+          onSubmit={async (n) => {
+            await window.api.saveNovel(n as any)
+            setNovels((prev) => [n, ...prev])
+            setSelectedNovelId(n.id)
+            setBrowseNovelId(n.id)
+            setBrowseLevel('novel')
+            setSelectedChapterId(n.chapters[0]?.id || null)
+            setShowAdd(false)
+          }}
+        />
+      )}
+
+      {settingsForId && (
+        <NovelSettingsDialog
+          novel={novels.find(n => n.id === settingsForId)!}
+          onClose={() => setSettingsForId(null)}
+          onUpdate={(updated) => {
+            setNovels(prev => prev.map(n => n.id === updated.id ? updated : n))
+          }}
+          onDelete={(id) => {
+            setNovels(prev => prev.filter(n => n.id !== id))
+            if (selectedNovelId === id) {
+              setSelectedNovelId(null)
+              setSelectedChapterId(null)
+            }
+          }}
         />
       )}
     </div>
