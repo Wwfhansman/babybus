@@ -2,17 +2,17 @@
 # Create a clean virtual environment before installing:
 # python -m venv .venv && .venv\Scripts\activate
 
-fastapi
-uvicorn
-python-multipart
-pydantic[dotenv]
-pillow
+# fastapi
+# uvicorn
+# python-multipart
+# pydantic[dotenv]
+# pillow
 
 # Volcengine Ark SDK (image/LLM APIs). Includes httpx/anyio as transitive deps.
-volcengine-python-sdk[ark]
+# volcengine-python-sdk[ark]
 
 # Ensure modern crypto for SDKs; in a fresh venv this will be fine.
-cryptography>=44.0.1
+# cryptography>=44.0.1
 
 # Optional: HTTP client if you prefer using it directly in your code
-httpx>=0.24
+# httpx>=0.24
