@@ -3,17 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebSocket连接测试</title>
+    <title>小说转连环画系统</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body {
             font-family: 'Microsoft YaHei', Arial, sans-serif;
             margin: 20px;
             line-height: 1.6;
+            background-color: #f5f5f5;
         }
         .container {
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         .status {
             padding: 10px;
@@ -52,8 +57,20 @@
             background-color: #6c757d;
             color: white;
         }
+        .primary-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        .secondary-btn {
+            background-color: #17a2b8;
+            color: white;
+        }
         button:hover {
             opacity: 0.8;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
         .log {
             margin-top: 20px;
@@ -76,15 +93,63 @@
         .test-buttons {
             margin: 20px 0;
         }
-        .test-btn {
-            background-color: #28a745;
-            color: white;
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .text-result {
+            background-color: #e9f7fe;
+        }
+        .images-result {
+            background-color: #f0f9f0;
+        }
+        .scene-card {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .image-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .image-card {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            width: 300px;
+            text-align: center;
+        }
+        .image-card img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #007bff;
+            transition: width 0.3s ease;
+        }
+        .hidden {
+            display: none;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>WebSocket连接测试</h1>
+        <h1>小说转连环画系统</h1>
 
         <div class="status disconnected" id="status">未连接</div>
 
@@ -96,14 +161,36 @@
 
         <div class="test-buttons">
             <h3>功能测试</h3>
-            <textarea id="novelText" rows="5" cols="50" placeholder="请输入测试小说文本..."></textarea>
-            <br>
-            <button class="test-btn" onclick="testProcessNovel()">测试处理小说</button>
-            <button class="test-btn" onclick="testFullProcess()">测试完整流程</button>
+            <textarea id="novelText" rows="8" cols="80" placeholder="请输入小说文本...">小明是一个勇敢的少年。一天，他在森林里遇到了一只受伤的小鹿。小明小心翼翼地接近小鹿，发现它的腿受伤了。他用自己的手帕为小鹿包扎伤口，然后帮助小鹿找到了它的妈妈。小鹿和它的妈妈都很感激小明，他们成为了好朋友。</textarea>
+            <br><br>
+            <button class="primary-btn" onclick="testFullProcess()">完整流程处理</button>
+            <button class="secondary-btn" onclick="testProcessNovel()">仅处理文本</button>
+        </div>
+
+        <!-- 文本处理结果区域 -->
+        <div id="textResultSection" class="section text-result hidden">
+            <h3>文本处理结果</h3>
+            <div id="textResultContent"></div>
+            <button id="generateComicsBtn" class="primary-btn" onclick="generateComicsFromText()">生成连环画</button>
+        </div>
+
+        <!-- 图片生成进度区域 -->
+        <div id="progressSection" class="section hidden">
+            <h3>图片生成进度</h3>
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+            </div>
+            <div id="progressText">准备开始...</div>
+        </div>
+
+        <!-- 图片显示区域 -->
+        <div id="imagesResultSection" class="section images-result hidden">
+            <h3>生成的连环画</h3>
+            <div id="imagesResultContent" class="image-container"></div>
         </div>
 
         <div class="log">
-            <h3>日志输出</h3>
+            <h3>系统日志</h3>
             <div id="logOutput"></div>
         </div>
     </div>
@@ -111,6 +198,7 @@
     <script>
         let socket;
         let isConnected = false;
+        let currentProcessId = null;
 
         function log(message, type = 'info') {
             const logOutput = document.getElementById('logOutput');
@@ -123,6 +211,8 @@
                 logEntry.style.color = 'red';
             } else if (type === 'success') {
                 logEntry.style.color = 'green';
+            } else if (type === 'warning') {
+                logEntry.style.color = 'orange';
             }
 
             logOutput.appendChild(logEntry);
@@ -143,100 +233,99 @@
 
             updateStatus('正在连接...', 'connecting');
             log('正在连接到服务器...', 'info');
-            
-            // 添加网络连通性检查指导
-            const serverAddress = document.getElementById('serverAddress').value;
-            log('连接前检查建议:', 'info');
-            log('1. 确保服务器已启动且运行在指定端口', 'info');
-            log('2. 检查防火墙是否允许端口5000的入站连接', 'info');
-            log('3. 确认服务器IP地址是否正确', 'info');
-            log('4. 尝试使用telnet或ping命令测试网络连通性', 'info');
 
             try {
                 const serverAddress = document.getElementById('serverAddress').value || 'http://10.201.202.108:5000';
                 log(`尝试连接到服务器: ${serverAddress}`, 'info');
                 socket = io(serverAddress, {
-                    transports: ['websocket', 'polling'], // 指定传输方式
-                    timeout: 10000, // 增加超时时间到10秒
-                    forceNew: true, // 强制创建新连接
-                    reconnection: false, // 禁用自动重连以更好地捕获初始连接错误
-                    withCredentials: true // 允许发送跨域凭证
+                    transports: ['websocket', 'polling'],
+                    timeout: 10000,
+                    forceNew: true,
+                    reconnection: false
                 });
-                
-                // 添加连接超时处理
+
+                // 连接超时处理
                 setTimeout(() => {
                     if (!isConnected) {
                         log('连接超时，请检查服务器地址和网络连接', 'error');
                         updateStatus('连接超时', 'disconnected');
-                        socket.disconnect();
+                        if (socket) socket.disconnect();
                     }
                 }, 10000);
-                
-                log('连接配置: 传输方式=' + ['websocket', 'polling'].join(', ') + ', 超时=' + 10000 + 'ms', 'info');
 
                 socket.on('connect', () => {
                     isConnected = true;
                     updateStatus('已连接到服务器', 'connected');
                     log('成功连接到服务器', 'success');
-                    console.log('Connected to server');
                 });
 
                 socket.on('disconnect', (reason) => {
                     isConnected = false;
                     updateStatus('已断开连接: ' + reason, 'disconnected');
                     log('与服务器断开连接: ' + reason, 'error');
-                    console.log('Disconnected from server:', reason);
+                    resetUI();
                 });
 
                 socket.on('connect_error', (error) => {
                     updateStatus('连接失败', 'disconnected');
                     log('连接错误: ' + error.message, 'error');
                     log('请检查服务器地址是否正确，以及网络连接是否正常', 'error');
-                    console.log('Connection error:', error);
                 });
 
-                socket.on('connection_status', (data) => {
-                    log('服务器状态: ' + JSON.stringify(data), 'info');
-                    console.log('Connection status:', data);
+                // 文本处理完成事件
+                socket.on('text_processing_complete', (data) => {
+                    log('文本处理完成!', 'success');
+                    currentProcessId = data.process_id; // 保存处理ID
+                    log(`保存处理ID: ${currentProcessId}`, 'info');
+                    displayTextResult(data);
                 });
 
-                // 处理小说处理相关事件
-                socket.on('process_status', (data) => {
-                    log(`处理状态: ${data.message}`, 'info');
+                socket.on('full_process_text_complete', (data) => {
+                    log('完整流程 - 文本处理完成!', 'success');
+                    currentProcessId = data.process_id; // 保存处理ID
+                    log(`保存处理ID: ${currentProcessId}`, 'info');
+                    displayTextResult(data);
                 });
 
-                socket.on('process_complete', (data) => {
-                    log(`小说处理完成! 场景数: ${data.total_scenes}`, 'success');
-                    console.log('Process complete:', data);
-                });
-
-                socket.on('process_error', (data) => {
-                    log(`处理错误: ${data.error}`, 'error');
-                });
-
-                // 完整流程事件
-                socket.on('full_process_status', (data) => {
-                    log(`完整流程状态: ${data.message}`, 'info');
+                // 图片生成进度事件
+                socket.on('generation_progress', (data) => {
+                    updateProgress(data.step, data.total, data.message);
                 });
 
                 socket.on('full_process_progress', (data) => {
-                    log(`生成进度: ${data.message} (${data.step}/${data.total})`, 'info');
+                    updateProgress(data.step, data.total, data.message);
+                });
+
+                // 图片生成完成事件
+                socket.on('comics_generation_complete', (data) => {
+                    log('连环画生成完成!', 'success');
+                    displayImagesResult(data);
                 });
 
                 socket.on('full_process_complete', (data) => {
-                    log(`完整流程完成! 生成 ${data.total_scenes} 张图片`, 'success');
-                    console.log('Full process complete:', data);
+                    log('完整流程处理完成!', 'success');
+                    displayImagesResult(data);
+                });
+
+                // 错误处理事件
+                socket.on('process_error', (data) => {
+                    log(`处理错误: ${data.error}`, 'error');
+                    resetUI();
+                });
+
+                socket.on('generation_error', (data) => {
+                    log(`生成错误: ${data.error}`, 'error');
+                    hideProgressSection();
                 });
 
                 socket.on('full_process_error', (data) => {
                     log(`完整流程错误: ${data.error}`, 'error');
+                    resetUI();
                 });
 
             } catch (error) {
                 updateStatus('连接失败', 'disconnected');
                 log('连接异常: ' + error.message, 'error');
-                log('请检查浏览器控制台获取更多信息', 'error');
-                console.error('Connection exception:', error);
             }
         }
 
@@ -246,6 +335,7 @@
                 isConnected = false;
                 updateStatus('已手动断开连接', 'disconnected');
                 log('已手动断开连接', 'info');
+                resetUI();
             } else {
                 log('没有活动的连接', 'info');
             }
@@ -264,6 +354,7 @@
             }
 
             log('发送小说处理请求...', 'info');
+            resetUI();
             socket.emit('process_novel', { novel_text: novelText });
         }
 
@@ -280,25 +371,145 @@
             }
 
             log('发送完整流程请求...', 'info');
+            resetUI();
             socket.emit('full_process', { novel_text: novelText });
         }
 
-        // 页面加载完成后自动尝试连接
+        function generateComicsFromText() {
+            if (!isConnected) {
+                log('请先连接到服务器', 'error');
+                return;
+            }
+
+            if (!currentProcessId) {
+                log('请先完成文本处理', 'error');
+                log(`当前处理ID: ${currentProcessId}`, 'error');
+                return;
+            }
+
+            log(`开始生成连环画，处理ID: ${currentProcessId}`, 'info');
+            showProgressSection();
+            socket.emit('start_comics_generation', { process_id: currentProcessId });
+        }
+
+        function displayTextResult(data) {
+            const textResultSection = document.getElementById('textResultSection');
+            const textResultContent = document.getElementById('textResultContent');
+
+            let html = `
+                <p><strong>处理ID:</strong> ${data.process_id}</p>
+                <p><strong>场景数量:</strong> ${data.scenes_count}</p>
+            `;
+
+            if (data.character_consistency && Object.keys(data.character_consistency).length > 0) {
+                html += `<p><strong>角色设定:</strong></p><ul>`;
+                for (const [name, desc] of Object.entries(data.character_consistency)) {
+                    html += `<li><strong>${name}:</strong> ${desc}</li>`;
+                }
+                html += `</ul>`;
+            }
+
+            if (data.environment_consistency && Object.keys(data.environment_consistency).length > 0) {
+                html += `<p><strong>环境设定:</strong></p><ul>`;
+                for (const [env, desc] of Object.entries(data.environment_consistency)) {
+                    html += `<li><strong>${env}:</strong> ${desc}</li>`;
+                }
+                html += `</ul>`;
+            }
+
+            if (data.scenes_detail) {
+                html += `<p><strong>场景详情:</strong></p>`;
+                data.scenes_detail.forEach((scene, index) => {
+                    html += `
+                        <div class="scene-card">
+                            <h4>场景 ${index + 1}</h4>
+                            <p>${scene}</p>
+                        </div>
+                    `;
+                });
+            } else if (data.scenes_preview) {
+                html += `<p><strong>场景预览:</strong></p>`;
+                data.scenes_preview.forEach(scene => {
+                    html += `
+                        <div class="scene-card">
+                            <h4>场景 ${scene.scene_index}</h4>
+                            <p>${scene.description}</p>
+                        </div>
+                    `;
+                });
+            }
+
+            textResultContent.innerHTML = html;
+            textResultSection.classList.remove('hidden');
+
+            // 确保生成按钮可用
+            document.getElementById('generateComicsBtn').disabled = false;
+        }
+
+        function displayImagesResult(data) {
+            hideProgressSection();
+            const imagesResultSection = document.getElementById('imagesResultSection');
+            const imagesResultContent = document.getElementById('imagesResultContent');
+
+            let html = `<p><strong>生成图片数量:</strong> ${data.total_scenes}</p>`;
+
+            if (data.comic_results && data.comic_results.length > 0) {
+                data.comic_results.forEach(scene => {
+                    html += `
+                        <div class="image-card">
+                            <h4>场景 ${scene.scene_index}</h4>
+                            <img src="${scene.url}" alt="场景 ${scene.scene_index}"
+                                 onerror="this.src='https://via.placeholder.com/300x200?text=图片加载失败'">
+                        </div>
+                    `;
+                });
+            } else {
+                html += `<p>没有生成图片</p>`;
+            }
+
+            imagesResultContent.innerHTML = html;
+            imagesResultSection.classList.remove('hidden');
+        }
+
+        function updateProgress(current, total, message) {
+            showProgressSection();
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            const percentage = Math.round((current / total) * 100);
+
+            progressFill.style.width = `${percentage}%`;
+            progressText.textContent = `${message} (${current}/${total})`;
+
+            log(`进度: ${message} (${current}/${total})`, 'info');
+        }
+
+        function showProgressSection() {
+            document.getElementById('progressSection').classList.remove('hidden');
+        }
+
+        function hideProgressSection() {
+            document.getElementById('progressSection').classList.add('hidden');
+        }
+
+        function resetUI() {
+            document.getElementById('textResultSection').classList.add('hidden');
+            document.getElementById('imagesResultSection').classList.add('hidden');
+            document.getElementById('progressSection').classList.add('hidden');
+            currentProcessId = null;
+            document.getElementById('generateComicsBtn').disabled = false;
+        }
+
+        // 页面加载完成
         window.addEventListener('load', function() {
             log('页面加载完成', 'info');
             log('请确保服务器地址正确，且在同一网络中可以访问该服务器', 'info');
-            log('如果10.201.202.108不可访问，请尝试使用服务器的其他IP地址或localhost', 'info');
-            // 可选：自动连接
-            // connect();
         });
 
-        // 添加键盘快捷键
+        // 键盘快捷键
         document.addEventListener('keydown', function(event) {
-            // Ctrl+Enter 发送测试
             if (event.ctrlKey && event.key === 'Enter') {
                 testFullProcess();
             }
-            // Escape 断开连接
             if (event.key === 'Escape') {
                 disconnect();
             }

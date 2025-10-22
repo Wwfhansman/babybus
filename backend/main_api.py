@@ -31,16 +31,19 @@ app = Flask(__name__)
 # 配置CORS，允许所有来源和所有方法
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"]}})
 # 配置SocketIO，添加更多参数以确保网络连接稳定性
-socketio = SocketIO(app, 
-                    cors_allowed_origins="*", 
+socketio = SocketIO(app,
+                    cors_allowed_origins="*",
                     async_mode='threading',
                     transports=['websocket', 'polling'],  # 指定支持的传输方式
                     ping_timeout=30,  # 心跳超时时间
                     ping_interval=10,  # 心跳间隔
-                    max_http_buffer_size=1024*1024*10)  # 增加最大缓冲区大小，注意这里添加了右括号
+                    max_http_buffer_size=1024 * 1024 * 10)  # 增加最大缓冲区大小
 
 # 全局变量
 processing_rules = None
+
+# 存储处理状态
+processing_states = {}
 
 
 def initialize_backend():
@@ -86,11 +89,14 @@ def handle_connect():
 def handle_disconnect():
     """客户端断开连接事件"""
     print(f"客户端已断开: {request.sid}")
+    # 清理该客户端的处理状态
+    if request.sid in processing_states:
+        del processing_states[request.sid]
 
 
 @socketio.on('process_novel')
 def handle_process_novel(data):
-    """WebSocket处理小说文本"""
+    """WebSocket处理小说文本 - 第一阶段"""
     try:
         novel_text = data.get('novel_text', '')
 
@@ -117,12 +123,31 @@ def handle_process_novel(data):
         llm_filename = f"llm_{process_id}.json"
         save_to_json(llm_result, llm_filename)
 
-        emit('process_complete', {
+        # 存储处理状态
+        processing_states[request.sid] = {
+            'process_id': process_id,
+            'llm_result': llm_result,
+            'llm_filename': llm_filename,
+            'current_stage': 'text_processed'
+        }
+
+        # 发送文本处理结果给前端
+        text_result = {
             "process_id": process_id,
-            "llm_result": llm_result,
-            "message": "小说处理完成",
-            "total_scenes": len(llm_result.get('scenes_detail', [])) if isinstance(llm_result, dict) else 0
-        })
+            "scenes_count": len(llm_result.get('scenes_detail', [])),
+            "character_consistency": llm_result.get('character_consistency', {}),
+            "environment_consistency": llm_result.get('environment_consistency', {}),
+            "scenes_preview": [
+                {
+                    "scene_index": i + 1,
+                    "description": scene[:100] + "..." if len(scene) > 100 else scene
+                }
+                for i, scene in enumerate(llm_result.get('scenes_detail', [])[:5])  # 只发送前5个场景预览
+            ],
+            "message": "小说文本处理完成，准备生成连环画"
+        }
+
+        emit('text_processing_complete', text_result)
 
     except Exception as e:
         emit('process_error', {'error': f'处理失败: {str(e)}'})
@@ -130,14 +155,20 @@ def handle_process_novel(data):
 
 @socketio.on('generate_comics')
 def handle_generate_comics(data):
-    """WebSocket生成连环画"""
+    """WebSocket生成连环画 - 第二阶段"""
     try:
         process_id = data.get('process_id')
         json_data = data.get('json_data')
 
         emit('generation_status', {'status': 'processing', 'message': '开始生成连环画...', 'step': 1})
 
-        if process_id:
+        # 优先使用客户端状态中存储的数据
+        client_state = processing_states.get(request.sid, {})
+        if not json_data and client_state.get('llm_result'):
+            json_data = client_state['llm_result']
+            process_id = client_state.get('process_id')
+            emit('generation_status', {'status': 'processing', 'message': '使用已处理的文本结果...', 'step': 2})
+        elif process_id and not json_data:
             # 从文件加载
             llm_filename = f"llm_{process_id}.json"
             if not os.path.exists(llm_filename):
@@ -153,7 +184,6 @@ def handle_generate_comics(data):
         # 调用AIGC生成连环画
         emit('generation_status', {'status': 'processing', 'message': '正在调用AIGC生成图片...', 'step': 3})
 
-        # 修改AIGC函数以支持进度回调
         comic_results = process_llm_json_and_generate_comics_with_progress(
             json_data,
             progress_callback=lambda step, total: emit('generation_progress', {
@@ -173,10 +203,17 @@ def handle_generate_comics(data):
         comic_filename = f"comic_{process_id if process_id else datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         save_comic_results(comic_results, json_data, comic_filename)
 
-        emit('generation_complete', {
+        # 更新处理状态
+        if request.sid in processing_states:
+            processing_states[request.sid]['comic_results'] = comic_results
+            processing_states[request.sid]['comic_filename'] = comic_filename
+            processing_states[request.sid]['current_stage'] = 'comics_generated'
+
+        # 发送图片生成结果给前端
+        emit('comics_generation_complete', {
+            "process_id": process_id,
             "comic_results": comic_results,
             "total_scenes": len(comic_results),
-            "process_id": process_id,
             "message": "连环画生成完成"
         })
 
@@ -186,7 +223,7 @@ def handle_generate_comics(data):
 
 @socketio.on('full_process')
 def handle_full_process(data):
-    """WebSocket完整流程：从小说到连环画"""
+    """WebSocket完整流程：从小说到连环画 - 分阶段处理"""
     try:
         novel_text = data.get('novel_text', '')
 
@@ -204,16 +241,62 @@ def handle_full_process(data):
             emit('full_process_error', {'error': 'LLM处理失败'})
             return
 
-        emit('full_process_status', {'status': 'processing', 'message': '小说处理完成，开始生成连环画...', 'step': 3})
-
         # 生成唯一ID
         process_id = datetime.now().strftime('%Y%m%d_%H%M%S')
 
-        # 第二步：AIGC生成
-        emit('full_process_status', {'status': 'processing', 'message': '正在生成连环画图片...', 'step': 4})
+        # 保存LLM结果
+        llm_filename = f"llm_{process_id}.json"
+        save_to_json(llm_result, llm_filename)
 
+        # 存储处理状态
+        processing_states[request.sid] = {
+            'process_id': process_id,
+            'llm_result': llm_result,
+            'llm_filename': llm_filename,
+            'current_stage': 'text_processed'
+        }
+
+        # 发送文本处理结果给前端
+        text_result = {
+            "process_id": process_id,
+            "scenes_count": len(llm_result.get('scenes_detail', [])),
+            "character_consistency": llm_result.get('character_consistency', {}),
+            "environment_consistency": llm_result.get('environment_consistency', {}),
+            "scenes_detail": llm_result.get('scenes_detail', []),
+            "message": "小说文本处理完成，开始生成连环画"
+        }
+
+        emit('full_process_text_complete', text_result)
+
+        # 第二步：AIGC生成（等待前端确认后开始）
+        # 这里不自动开始，等待前端调用 generate_comics
+
+    except Exception as e:
+        emit('full_process_error', {'error': f'处理失败: {str(e)}'})
+
+
+@socketio.on('start_comics_generation')
+def handle_start_comics_generation(data):
+    """开始生成连环画（在文本处理完成后由前端触发）"""
+    try:
+        process_id = data.get('process_id')
+
+        # 从处理状态中获取数据
+        client_state = processing_states.get(request.sid, {})
+        if not client_state or client_state.get('process_id') != process_id:
+            emit('generation_error', {'error': '找不到对应的处理状态'})
+            return
+
+        json_data = client_state.get('llm_result')
+        if not json_data:
+            emit('generation_error', {'error': '没有可用的文本处理结果'})
+            return
+
+        emit('full_process_status', {'status': 'processing', 'message': '开始生成连环画图片...', 'step': 4})
+
+        # 调用AIGC生成连环画
         comic_results = process_llm_json_and_generate_comics_with_progress(
-            llm_result,
+            json_data,
             progress_callback=lambda step, total: emit('full_process_progress', {
                 'step': step,
                 'total': total,
@@ -231,19 +314,24 @@ def handle_full_process(data):
         llm_filename = f"llm_{process_id}.json"
         comic_filename = f"comic_{process_id}.json"
 
-        save_to_json(llm_result, llm_filename)
-        save_comic_results(comic_results, llm_result, comic_filename)
+        save_to_json(json_data, llm_filename)
+        save_comic_results(comic_results, json_data, comic_filename)
+
+        # 更新处理状态
+        processing_states[request.sid]['comic_results'] = comic_results
+        processing_states[request.sid]['comic_filename'] = comic_filename
+        processing_states[request.sid]['current_stage'] = 'comics_generated'
 
         emit('full_process_complete', {
             "process_id": process_id,
-            "llm_result": llm_result,
+            "llm_result": json_data,
             "comic_results": comic_results,
             "total_scenes": len(comic_results),
             "message": "完整流程处理完成"
         })
 
     except Exception as e:
-        emit('full_process_error', {'error': f'处理失败: {str(e)}'})
+        emit('full_process_error', {'error': f'生成失败: {str(e)}'})
 
 
 # 原有的HTTP API端点保持不变
@@ -404,4 +492,4 @@ if __name__ == '__main__':
 
     # 启动Flask-SocketIO应用
     print("启动后端服务（支持WebSocket）...")
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True,allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
