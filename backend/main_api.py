@@ -28,8 +28,16 @@ except ImportError as e:
     sys.exit(1)
 
 app = Flask(__name__)
-CORS(app)  # 允许跨域请求
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+# 配置CORS，允许所有来源和所有方法
+CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"]}})
+# 配置SocketIO，添加更多参数以确保网络连接稳定性
+socketio = SocketIO(app, 
+                    cors_allowed_origins="*", 
+                    async_mode='threading',
+                    transports=['websocket', 'polling'],  # 指定支持的传输方式
+                    ping_timeout=30,  # 心跳超时时间
+                    ping_interval=10,  # 心跳间隔
+                    max_http_buffer_size=1024*1024*10)  # 增加最大缓冲区大小，注意这里添加了右括号
 
 # 全局变量
 processing_rules = None

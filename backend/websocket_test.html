@@ -143,14 +143,36 @@
 
             updateStatus('正在连接...', 'connecting');
             log('正在连接到服务器...', 'info');
+            
+            // 添加网络连通性检查指导
+            const serverAddress = document.getElementById('serverAddress').value;
+            log('连接前检查建议:', 'info');
+            log('1. 确保服务器已启动且运行在指定端口', 'info');
+            log('2. 检查防火墙是否允许端口5000的入站连接', 'info');
+            log('3. 确认服务器IP地址是否正确', 'info');
+            log('4. 尝试使用telnet或ping命令测试网络连通性', 'info');
 
             try {
                 const serverAddress = document.getElementById('serverAddress').value || 'http://10.201.202.108:5000';
                 log(`尝试连接到服务器: ${serverAddress}`, 'info');
                 socket = io(serverAddress, {
                     transports: ['websocket', 'polling'], // 指定传输方式
-                    timeout: 5000 // 设置5秒超时
+                    timeout: 10000, // 增加超时时间到10秒
+                    forceNew: true, // 强制创建新连接
+                    reconnection: false, // 禁用自动重连以更好地捕获初始连接错误
+                    withCredentials: true // 允许发送跨域凭证
                 });
+                
+                // 添加连接超时处理
+                setTimeout(() => {
+                    if (!isConnected) {
+                        log('连接超时，请检查服务器地址和网络连接', 'error');
+                        updateStatus('连接超时', 'disconnected');
+                        socket.disconnect();
+                    }
+                }, 10000);
+                
+                log('连接配置: 传输方式=' + ['websocket', 'polling'].join(', ') + ', 超时=' + 10000 + 'ms', 'info');
 
                 socket.on('connect', () => {
                     isConnected = true;
