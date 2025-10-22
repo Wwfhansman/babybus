@@ -9,22 +9,15 @@ from datetime import datetime
 sys.path.append('./python_LLM')
 sys.path.append('./python_aigc')
 
+# 延迟导入，避免未安装云 SDK 时服务无法启动
+LLM_AVAILABLE = True
+AIGC_AVAILABLE = True
 try:
-    from python_LLM.doubao_1_5 import (
-        process_novel_text,
-        save_to_json,
-        load_json_file,
-        read_role_docx,
-        export_json_for_aigc
-    )
-    from python_aigc.seedream import (
-        process_llm_json_and_generate_comics,
-        generate_comics_from_json_file,
-        save_comic_results
-    )
-except ImportError as e:
-    print(f"导入模块失败: {e}")
-    sys.exit(1)
+    import importlib
+    importlib.util.find_spec("volcenginesdkarkruntime")
+except Exception:
+    LLM_AVAILABLE = False
+    AIGC_AVAILABLE = False
 
 app = Flask(__name__)
 CORS(app)  # 允许跨域请求
@@ -36,6 +29,12 @@ processing_rules = None
 def initialize_backend():
     """初始化后端服务"""
     global processing_rules
+
+    # 在函数内部导入，减少启动依赖
+    try:
+        from python_LLM.doubao_1_5 import read_role_docx
+    except ImportError as e:
+        raise Exception(f"读取处理规则所需模块未就绪: {e}")
 
     # 获取role.docx路径
     def get_role_docx_path():
@@ -74,11 +73,17 @@ def health_check():
 def process_novel():
     """处理小说文本"""
     try:
+        # 延迟导入与调用，避免启动失败
+        from python_LLM.doubao_1_5 import process_novel_text, save_to_json
+
         data = request.get_json()
         novel_text = data.get('novel_text', '')
 
         if not novel_text:
             return jsonify({"error": "小说文本不能为空"}), 400
+
+        if processing_rules is None:
+            return jsonify({"error": "处理规则未初始化，依赖未安装或初始化失败"}), 503
 
         # 调用LLM处理
         llm_result = process_novel_text(novel_text, processing_rules)
@@ -99,6 +104,8 @@ def process_novel():
             "message": "小说处理完成"
         })
 
+    except ImportError as e:
+        return jsonify({"error": f"后端处理模块未就绪: {str(e)}"}), 503
     except Exception as e:
         return jsonify({"error": f"处理失败: {str(e)}"}), 500
 
@@ -107,6 +114,10 @@ def process_novel():
 def generate_comics():
     """生成连环画"""
     try:
+        # 延迟导入与调用，避免启动失败
+        from python_LLM.doubao_1_5 import load_json_file
+        from python_aigc.seedream import process_llm_json_and_generate_comics, save_comic_results
+
         data = request.get_json()
 
         # 支持两种输入：process_id 或 直接的json_data
@@ -139,6 +150,8 @@ def generate_comics():
             "message": "连环画生成完成"
         })
 
+    except ImportError as e:
+        return jsonify({"error": f"后端生成模块未就绪: {str(e)}"}), 503
     except Exception as e:
         return jsonify({"error": f"生成失败: {str(e)}"}), 500
 
@@ -147,11 +160,18 @@ def generate_comics():
 def full_process():
     """完整流程：从小说到连环画"""
     try:
+        # 延迟导入与调用，避免启动失败
+        from python_LLM.doubao_1_5 import process_novel_text, save_to_json
+        from python_aigc.seedream import process_llm_json_and_generate_comics, save_comic_results
+
         data = request.get_json()
         novel_text = data.get('novel_text', '')
 
         if not novel_text:
             return jsonify({"error": "小说文本不能为空"}), 400
+
+        if processing_rules is None:
+            return jsonify({"error": "处理规则未初始化，依赖未安装或初始化失败"}), 503
 
         # 第一步：LLM处理
         llm_result = process_novel_text(novel_text, processing_rules)
@@ -181,6 +201,8 @@ def full_process():
             "message": "完整流程处理完成"
         })
 
+    except ImportError as e:
+        return jsonify({"error": f"后端处理模块未就绪: {str(e)}"}), 503
     except Exception as e:
         return jsonify({"error": f"处理失败: {str(e)}"}), 500
 
@@ -203,9 +225,15 @@ def get_results(process_id):
 
 
 if __name__ == '__main__':
-    # 初始化后端
-    initialize_backend()
+    # 初始化后端（依赖就绪时）
+    try:
+        if LLM_AVAILABLE and AIGC_AVAILABLE:
+            initialize_backend()
+        else:
+            print("跳过初始化：Ark SDK 未安装。仅提供 /api/health。")
+    except Exception as e:
+        print(f"初始化失败（继续提供健康检查）: {e}")
 
     # 启动Flask应用
     print("启动后端服务...")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)

@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react'
 // 简易数据结构与占位数据
 export type Section = { id: string; title: string }
 // 将章节类型扩展为包含正文内容
-export type Chapter = { id: string; title: string; sections: Section[]; content?: string }
+export type Chapter = { id: string; title: string; sections: Section[]; content?: string; processId?: string }
 export type Character = { name: string; imagePath?: string }
 export type Novel = { id: string; title: string; chapters: Chapter[]; characters?: Character[] }
 
@@ -227,8 +227,7 @@ const NovelSettingsDialog: React.FC<{
               {(characters || []).map((c, idx) => (
                 <div key={idx} className="character-item">
                   <div className="preview">
--                    {c.imagePath ? (<img src={(c.imagePath.startsWith('file://') ? c.imagePath : ('file://' + c.imagePath))} alt={c.name} />) : (<div className="placeholder">无图</div>)}
-+                    {previewUrls[idx] ? (<img src={previewUrls[idx]} alt={c.name} />) : (<div className="placeholder">无图</div>)}
+                    {previewUrls[idx] ? (<img src={previewUrls[idx]} alt={c.name} />) : (<div className="placeholder">无图</div>)}
                   </div>
                   <div className="meta">
                     <input value={c.name} onChange={(e) => {
@@ -270,7 +269,12 @@ const CreatePage: React.FC = () => {
   const PER_PAGE = 50
   const browseNovel = useMemo(() => novels.find(n => n.id === browseNovelId) || null, [novels, browseNovelId])
   const [recognizing, setRecognizing] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const [settingsForId, setSettingsForId] = useState<string | null>(null)
+  // 记录每个章节的后端处理ID（用于后续生成漫画）
+  const [processIdsByChapter, setProcessIdsByChapter] = useState<Record<string, string>>({})
+  // 存储每个章节生成的漫画结果（后续用于展示图片）
+  const [comicResultsByChapter, setComicResultsByChapter] = useState<Record<string, any[]>>({})
 
   // 初始化：从本地读取小说列表
   useEffect(() => {
@@ -289,23 +293,62 @@ const CreatePage: React.FC = () => {
     if (!text) return
     setRecognizing(true)
     try {
-      const res: any = await window.api.invokeBackend('storyboard/recognize', { chapterId: selectedChapter.id, text })
-      const sections: Section[] | null = Array.isArray(res?.sections)
-        ? res.sections.map((item: any, idx: number) => ({ id: `s-${idx+1}`, title: typeof item === 'string' ? item : (item?.title || `镜头 ${idx+1}`) }))
+      const resp: any = await window.api.invokeBackend('storyboard/recognize', { chapterId: selectedChapter.id, text })
+      const ok = !!resp && (resp.ok ?? true)
+      const data = resp?.data ?? resp
+      const pid = data?.process_id
+      if (pid) {
+        setProcessIdsByChapter((prev) => ({ ...prev, [selectedChapter.id]: String(pid) }))
+      }
+      // 纯识别模式：不处理漫画结果
+      // 从后端 llm_result 中提取分镜标题
+      const llm = data?.llm_result || {}
+      const scenes = Array.isArray(llm?.scenes_detail) ? llm.scenes_detail : (Array.isArray(llm?.scenes) ? llm.scenes : [])
+      const toTitle = (item: any, idx: number) => {
+        if (typeof item === 'string') return item
+        if (item && typeof item === 'object') return (item.title || item.desc || item.description || `镜头 ${idx+1}`)
+        return `镜头 ${idx+1}`
+      }
+      const sections: Section[] | null = Array.isArray(scenes) && scenes.length
+        ? scenes.map((item: any, idx: number) => ({ id: `s-${idx+1}`, title: String(toTitle(item, idx)).slice(0, 24) || `镜头 ${idx+1}` }))
         : null
-      const finalSections = sections && sections.length ? sections : (text.split(/[。！？!?\n]+/).map(s => s.trim()).filter(Boolean).slice(0, 12).map((t, i) => ({ id: `s-${i+1}`, title: t.slice(0, 24) || `镜头 ${i+1}` })))
+      const finalSections = sections && sections.length
+        ? sections
+        : text.split(/[。！？!?,，\n]+/).map((s) => s.trim()).filter(Boolean).slice(0, 12).map((t, i) => ({ id: `s-${i+1}`, title: t.slice(0, 24) || `镜头 ${i+1}` }))
       setNovels(prev => prev.map(n => n.id === selectedNovelId ? ({
         ...n,
-        chapters: n.chapters.map(ch => ch.id === selectedChapter.id ? ({ ...ch, sections: finalSections }) : ch)
+        chapters: n.chapters.map(ch => ch.id === selectedChapter.id ? ({ ...ch, sections: finalSections, processId: pid || ch.processId }) : ch)
       }) : n))
     } catch (e) {
-      const fallback = text.split(/[。！？!?\n]+/).map(s => s.trim()).filter(Boolean).slice(0, 12).map((t, i) => ({ id: `s-${i+1}`, title: t.slice(0, 24) || `镜头 ${i+1}` }))
+      const fallback = text.split(/[。！？!?,，\n]+/).map(s => s.trim()).filter(Boolean).slice(0, 12).map((t, i) => ({ id: `s-${i+1}`, title: t.slice(0, 24) || `镜头 ${i+1}` }))
       setNovels(prev => prev.map(n => n.id === selectedNovelId ? ({
         ...n,
         chapters: n.chapters.map(ch => ch.id === selectedChapter.id ? ({ ...ch, sections: fallback }) : ch)
       }) : n))
     } finally {
       setRecognizing(false)
+    }
+  }
+
+  async function generateComics() {
+    if (!selectedChapter || !selectedNovelId) return
+    const sections = selectedChapter.sections || []
+    if (!sections.length) return
+    setGenerating(true)
+    try {
+      const titles = sections.map((s) => s.title)
+      const json_data = { scenes_detail: titles }
+      const payload: any = { json_data }
+      const pid = selectedChapter.processId || processIdsByChapter[selectedChapter.id]
+      if (pid) payload.process_id = pid
+      const resp: any = await (window as any).api.invokeBackend('api/generate-comics', payload)
+      const data = resp?.data ?? resp
+      const results = Array.isArray(data?.comic_results) ? data.comic_results : (Array.isArray(data?.results) ? data.results : [])
+      setComicResultsByChapter((prev) => ({ ...prev, [selectedChapter.id]: results }))
+    } catch (e) {
+      console.error('生成漫画失败', e)
+    } finally {
+      setGenerating(false)
     }
   }
 
@@ -430,6 +473,9 @@ const CreatePage: React.FC = () => {
             <button className="primary" disabled={!selectedChapter?.content || recognizing} onClick={recognizeStoryboard}>
               {recognizing ? '识别中…' : '识别分镜'}
             </button>
+            {!selectedChapter?.content ? (
+              <span className="tip">请先从左侧选择章节后再识别</span>
+            ) : null}
           </div>
         </div>
       </section>
@@ -449,7 +495,16 @@ const CreatePage: React.FC = () => {
               <ul>
                 {selectedChapter.sections.map((s) => (
                   <li key={s.id}>
-                    <input defaultValue={s.title} />
+                    <input value={s.title} onChange={(e) => {
+                      const v = e.target.value
+                      setNovels((prev) => prev.map((n) => n.id === selectedNovelId ? ({
+                        ...n,
+                        chapters: n.chapters.map((ch) => ch.id === selectedChapter.id ? ({
+                          ...ch,
+                          sections: ch.sections.map((sec) => sec.id === s.id ? ({ ...sec, title: v }) : sec)
+                        }) : ch)
+                      }) : n))
+                    }} />
                   </li>
                 ))}
               </ul>
@@ -465,15 +520,26 @@ const CreatePage: React.FC = () => {
         <header>
           <h3>漫画生成输出区</h3>
           <div className="actions">
-            <button disabled>生成漫画</button>
+            <button className="primary" disabled={!selectedChapter?.sections?.length || generating} onClick={generateComics}>{generating ? '生成中…' : '生成漫画'}</button>
             <button disabled>导出</button>
           </div>
         </header>
         <div className="output-body">
           <div className="pages">
-            {[1, 2, 3, 4].map((i) => (
+            {(comicResultsByChapter[selectedChapterId || ''] || []).length ? (
+              (comicResultsByChapter[selectedChapterId || ''] || []).map((item, i) => (
+                <div key={i} className="page">
+                  {item?.url ? (
+                    <img src={item.url} alt={`场景 ${item?.scene_index || i + 1}`} />
+                  ) : (
+                    <div className="page-skeleton">场景 {item?.scene_index || i + 1}（图片生成后展示）</div>
+                  )}
+                  {item?.size ? <div className="meta">尺寸：{item.size}</div> : null}
+                </div>
+              ))
+            ) : ([1, 2, 3, 4].map((i) => (
               <div key={i} className="page-skeleton">第 {i} 页预览（占位）</div>
-            ))}
+            )))}
           </div>
           <p className="tip">后端完成后将展示生成的页面缩略图与进度。</p>
         </div>

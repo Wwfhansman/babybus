@@ -70,9 +70,58 @@ app.whenReady().then(() => {
 
   ipcMain.handle(
     'backend:invoke',
-    async (_e, { route, payload }: { route: string; payload: unknown }) => {
-      // TODO: replace with real backend call
-      return { route, ok: true, payload }
+    async (_e, { route, payload }: { route: string; payload: any }) => {
+      const base = process.env.BABYBUS_BACKEND_URL || 'http://127.0.0.1:5000'
+  
+      // Normalize and map renderer routes to Flask endpoints
+      const normalize = (r: string) => (r || '').trim().replace(/^\/+/, '')
+      const r = normalize(route)
+  
+      let path = '/' + r
+      let method: 'GET' | 'POST' = 'POST'
+      let body: any = payload ?? {}
+  
+      if (r === 'novel/parse') {
+        path = '/api/process-novel'
+        method = 'POST'
+        body = { novel_text: String(payload?.text || '') }
+      } else if (r === 'storyboard/recognize') {
+        // Pure storyboard recognition: only process novel text
+        path = '/api/process-novel'
+        method = 'POST'
+        body = { novel_text: String(payload?.text || '') }
+      } else if (r.startsWith('api/health')) {
+        path = '/api/health'
+        method = 'GET'
+        body = undefined
+      } else if (/^api\/results\//.test(r)) {
+        path = '/' + r
+        method = 'GET'
+        body = undefined
+      } else if (r.startsWith('api/')) {
+        // Pass-through to Flask API
+        path = '/' + r
+        method = 'POST'
+      } else {
+        // Default: treat as POST to provided route
+        path = '/' + r
+        method = 'POST'
+      }
+  
+      const url = `${base}${path}`
+  
+      try {
+        const res = await (globalThis as any).fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: method === 'POST' && body !== undefined ? JSON.stringify(body) : undefined
+        })
+        const ct = res.headers.get('content-type') || ''
+        const data = ct.includes('application/json') ? await res.json() : await res.text()
+        return { ok: res.ok, status: res.status, data }
+      } catch (e: any) {
+        return { ok: false, error: String(e) }
+      }
     }
   )
 
@@ -156,7 +205,7 @@ app.whenReady().then(() => {
     const slug = toSlug(name || 'character')
     const filePath = join(dir, `${slug}-${Date.now()}.${safeExt}`)
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer)
-    await writeFile(filePath, buf)
+    await writeFile(filePath, buf as unknown as Uint8Array)
     return { ok: true, path: filePath }
   })
 
