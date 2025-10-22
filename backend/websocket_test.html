@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket连接测试</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .connecting {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .connect-btn {
+            background-color: #007bff;
+            color: white;
+        }
+        .disconnect-btn {
+            background-color: #6c757d;
+            color: white;
+        }
+        button:hover {
+            opacity: 0.8;
+        }
+        .log {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .log-time {
+            color: #6c757d;
+            font-size: 0.8em;
+        }
+        .test-buttons {
+            margin: 20px 0;
+        }
+        .test-btn {
+            background-color: #28a745;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WebSocket连接测试</h1>
+
+        <div class="status disconnected" id="status">未连接</div>
+
+        <div>
+            <input type="text" id="serverAddress" value="http://10.201.202.108:5000" placeholder="服务器地址" style="width: 300px; padding: 8px; margin: 5px;">
+            <button class="connect-btn" onclick="connect()">连接服务器</button>
+            <button class="disconnect-btn" onclick="disconnect()">断开连接</button>
+        </div>
+
+        <div class="test-buttons">
+            <h3>功能测试</h3>
+            <textarea id="novelText" rows="5" cols="50" placeholder="请输入测试小说文本..."></textarea>
+            <br>
+            <button class="test-btn" onclick="testProcessNovel()">测试处理小说</button>
+            <button class="test-btn" onclick="testFullProcess()">测试完整流程</button>
+        </div>
+
+        <div class="log">
+            <h3>日志输出</h3>
+            <div id="logOutput"></div>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        let isConnected = false;
+
+        function log(message, type = 'info') {
+            const logOutput = document.getElementById('logOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `<span class="log-time">[${timestamp}]</span> ${message}`;
+
+            if (type === 'error') {
+                logEntry.style.color = 'red';
+            } else if (type === 'success') {
+                logEntry.style.color = 'green';
+            }
+
+            logOutput.appendChild(logEntry);
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+
+        function updateStatus(message, status) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${status}`;
+        }
+
+        function connect() {
+            if (isConnected) {
+                log('已经连接到服务器', 'info');
+                return;
+            }
+
+            updateStatus('正在连接...', 'connecting');
+            log('正在连接到服务器...', 'info');
+
+            try {
+                const serverAddress = document.getElementById('serverAddress').value || 'http://10.201.202.108:5000';
+                log(`尝试连接到服务器: ${serverAddress}`, 'info');
+                socket = io(serverAddress, {
+                    transports: ['websocket', 'polling'], // 指定传输方式
+                    timeout: 5000 // 设置5秒超时
+                });
+
+                socket.on('connect', () => {
+                    isConnected = true;
+                    updateStatus('已连接到服务器', 'connected');
+                    log('成功连接到服务器', 'success');
+                    console.log('Connected to server');
+                });
+
+                socket.on('disconnect', (reason) => {
+                    isConnected = false;
+                    updateStatus('已断开连接: ' + reason, 'disconnected');
+                    log('与服务器断开连接: ' + reason, 'error');
+                    console.log('Disconnected from server:', reason);
+                });
+
+                socket.on('connect_error', (error) => {
+                    updateStatus('连接失败', 'disconnected');
+                    log('连接错误: ' + error.message, 'error');
+                    log('请检查服务器地址是否正确，以及网络连接是否正常', 'error');
+                    console.log('Connection error:', error);
+                });
+
+                socket.on('connection_status', (data) => {
+                    log('服务器状态: ' + JSON.stringify(data), 'info');
+                    console.log('Connection status:', data);
+                });
+
+                // 处理小说处理相关事件
+                socket.on('process_status', (data) => {
+                    log(`处理状态: ${data.message}`, 'info');
+                });
+
+                socket.on('process_complete', (data) => {
+                    log(`小说处理完成! 场景数: ${data.total_scenes}`, 'success');
+                    console.log('Process complete:', data);
+                });
+
+                socket.on('process_error', (data) => {
+                    log(`处理错误: ${data.error}`, 'error');
+                });
+
+                // 完整流程事件
+                socket.on('full_process_status', (data) => {
+                    log(`完整流程状态: ${data.message}`, 'info');
+                });
+
+                socket.on('full_process_progress', (data) => {
+                    log(`生成进度: ${data.message} (${data.step}/${data.total})`, 'info');
+                });
+
+                socket.on('full_process_complete', (data) => {
+                    log(`完整流程完成! 生成 ${data.total_scenes} 张图片`, 'success');
+                    console.log('Full process complete:', data);
+                });
+
+                socket.on('full_process_error', (data) => {
+                    log(`完整流程错误: ${data.error}`, 'error');
+                });
+
+            } catch (error) {
+                updateStatus('连接失败', 'disconnected');
+                log('连接异常: ' + error.message, 'error');
+                log('请检查浏览器控制台获取更多信息', 'error');
+                console.error('Connection exception:', error);
+            }
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                isConnected = false;
+                updateStatus('已手动断开连接', 'disconnected');
+                log('已手动断开连接', 'info');
+            } else {
+                log('没有活动的连接', 'info');
+            }
+        }
+
+        function testProcessNovel() {
+            if (!isConnected) {
+                log('请先连接到服务器', 'error');
+                return;
+            }
+
+            const novelText = document.getElementById('novelText').value;
+            if (!novelText.trim()) {
+                log('请输入小说文本', 'error');
+                return;
+            }
+
+            log('发送小说处理请求...', 'info');
+            socket.emit('process_novel', { novel_text: novelText });
+        }
+
+        function testFullProcess() {
+            if (!isConnected) {
+                log('请先连接到服务器', 'error');
+                return;
+            }
+
+            const novelText = document.getElementById('novelText').value;
+            if (!novelText.trim()) {
+                log('请输入小说文本', 'error');
+                return;
+            }
+
+            log('发送完整流程请求...', 'info');
+            socket.emit('full_process', { novel_text: novelText });
+        }
+
+        // 页面加载完成后自动尝试连接
+        window.addEventListener('load', function() {
+            log('页面加载完成', 'info');
+            log('请确保服务器地址正确，且在同一网络中可以访问该服务器', 'info');
+            log('如果10.201.202.108不可访问，请尝试使用服务器的其他IP地址或localhost', 'info');
+            // 可选：自动连接
+            // connect();
+        });
+
+        // 添加键盘快捷键
+        document.addEventListener('keydown', function(event) {
+            // Ctrl+Enter 发送测试
+            if (event.ctrlKey && event.key === 'Enter') {
+                testFullProcess();
+            }
+            // Escape 断开连接
+            if (event.key === 'Escape') {
+                disconnect();
+            }
+        });
+    </script>
+</body>
+</html>

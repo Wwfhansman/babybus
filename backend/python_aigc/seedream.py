@@ -9,12 +9,13 @@ from volcenginesdkarkruntime.types.images.images import SequentialImageGeneratio
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-def process_llm_json_and_generate_comics(json_data):
+def process_llm_json_and_generate_comics(json_data, progress_callback=None):
     """
     处理从LLM模型接收的JSON数据并生成连环画
 
     参数:
         json_data: 从LLM模型接收的JSON数据，格式应包含scenes_detail字段
+        progress_callback: 进度回调函数，接受当前步骤和总步骤数
     """
     # 初始化Ark客户端
     client = Ark(
@@ -55,7 +56,13 @@ def process_llm_json_and_generate_comics(json_data):
 
     # 对每个场景分别调用API
     results = []
+    total_scenes = len(scenes_detail)
+
     for i, scene_detail in enumerate(scenes_detail):
+        # 调用进度回调
+        if progress_callback:
+            progress_callback(i + 1, total_scenes)
+
         # 为每个场景单独构建提示词，加入一致性信息
         comic_prompt = f"{consistency_prefix}漫画风格连环画,注意每幅画面间的连贯性。{scene_detail}"
 
@@ -96,7 +103,6 @@ def process_llm_json_and_generate_comics(json_data):
             # 即使某个场景失败，继续处理其他场景
 
     return results
-
 
 def generate_comics_from_json_file(json_file_path):
     """
