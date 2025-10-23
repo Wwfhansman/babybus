@@ -568,15 +568,30 @@ const CreatePage: React.FC = () => {
 
   // 取消生成功能
   const cancelGeneration = () => {
+    console.log('取消漫画生成...');
+    
+    // 清除超时定时器
+    if ((window as any).generationTimeout) {
+      clearTimeout((window as any).generationTimeout);
+      delete (window as any).generationTimeout;
+      console.log('已清除生成超时定时器');
+    }
+
     if (socketRef.current && (comicGeneration.status === 'generating' || comicGeneration.status === 'connecting')) {
-      socketRef.current.emit('cancel_generation')
+      console.log('发送取消请求到服务器');
+      socketRef.current.emit('cancel_generation', { 
+        process_id: selectedNovel?.id 
+      });
+      
       setComicGeneration(prev => ({
         ...prev,
         status: 'idle',
         progress: { current: 0, total: 0, percentage: 0 },
         message: undefined,
         error: undefined
-      }))
+      }));
+      
+      console.log('漫画生成已取消');
     }
   }
 
@@ -637,6 +652,7 @@ const CreatePage: React.FC = () => {
     }
 
     try {
+      console.log('开始漫画生成流程...')
       setComicGeneration(prev => ({
         ...prev,
         status: 'connecting',
@@ -644,6 +660,47 @@ const CreatePage: React.FC = () => {
         images: [],
         error: undefined,
         message: '正在连接服务器...'
+      }))
+
+      // 确保WebSocket连接
+      if (!socketRef.current.connected) {
+        console.log('WebSocket未连接，尝试建立连接...')
+        setComicGeneration(prev => ({
+          ...prev,
+          message: '正在建立连接...'
+        }))
+        
+        // 等待连接建立，增加超时处理
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            console.error('WebSocket连接超时')
+            reject(new Error('连接超时，请检查网络或服务器状态'))
+          }, 30000) // 增加到30秒
+
+          if (socketRef.current?.connected) {
+            console.log('WebSocket已连接')
+            clearTimeout(timeout)
+            resolve(void 0)
+          } else {
+            socketRef.current?.on('connect', () => {
+              console.log('WebSocket连接成功')
+              clearTimeout(timeout)
+              resolve(void 0)
+            })
+            socketRef.current?.on('connect_error', (error) => {
+              console.error('WebSocket连接错误:', error)
+              clearTimeout(timeout)
+              reject(error)
+            })
+          }
+        })
+      }
+
+      console.log('准备发送漫画生成请求...')
+      setComicGeneration(prev => ({
+        ...prev,
+        message: '正在发送生成请求...',
+        progress: { current: 1, total: 10, percentage: 10 }
       }))
 
       // 准备发送的数据
@@ -658,8 +715,21 @@ const CreatePage: React.FC = () => {
 
       console.log('发送漫画生成请求:', generationData)
 
+      // 设置生成超时（30分钟）
+      const generationTimeout = setTimeout(() => {
+        console.error('漫画生成超时')
+        setComicGeneration(prev => ({
+          ...prev,
+          status: 'error',
+          error: '生成超时，请重试或联系管理员'
+        }))
+      }, 30 * 60 * 1000) // 30分钟
+
       // 通过WebSocket发送生成请求
       socketRef.current.emit('generate_comics', generationData)
+
+      // 保存超时ID以便取消时清除
+      ;(window as any).generationTimeout = generationTimeout
 
     } catch (error) {
         console.error('漫画生成请求失败:', error)
@@ -1148,23 +1218,42 @@ const CreatePage: React.FC = () => {
               <div className="status-icon loading">⚡</div>
               <h4>正在生成漫画</h4>
               <p>{comicGeneration.message}</p>
+              
+              {/* 增强的进度显示 */}
               {comicGeneration.progress.total > 0 && (
-                <div className="progress-container">
-                  <div className="progress-bar">
+                <div className="progress-container enhanced">
+                  <div className="progress-info">
+                    <div className="progress-stats">
+                      <span className="current-step">步骤 {comicGeneration.progress.current}</span>
+                      <span className="total-steps">共 {comicGeneration.progress.total} 步</span>
+                      <span className="percentage">{comicGeneration.progress.percentage}%</span>
+                    </div>
+                  </div>
+                  
+                  <div className="progress-bar enhanced">
                     <div 
-                      className="progress-fill" 
+                      className="progress-fill animated" 
                       style={{ width: `${comicGeneration.progress.percentage}%` }}
                     ></div>
                   </div>
-                  <div className="progress-text">
-                    {comicGeneration.progress.current} / {comicGeneration.progress.total} ({comicGeneration.progress.percentage}%)
+                  
+                  <div className="progress-details">
+                    <div className="time-estimate">
+                      <span>⏱️ 预计剩余时间: 计算中...</span>
+                    </div>
+                    <div className="generation-tips">
+                      <p>💡 AI正在为您精心绘制每一帧画面</p>
+                      <p>🎨 生成过程可能需要几分钟，请耐心等待</p>
+                      <p>🔄 如果长时间无响应，可以点击"取消生成"后重试</p>
+                    </div>
                   </div>
                 </div>
               )}
+              
               {/* 显示已生成的图片 */}
               {comicGeneration.images.length > 0 && (
                 <div className="preview-images">
-                  <h5>已生成的图片：</h5>
+                  <h5>已生成的图片 ({comicGeneration.images.length} 张)：</h5>
                   <div className="image-grid">
                     {comicGeneration.images.map((image) => (
                       <div key={image.id} className="image-item">
