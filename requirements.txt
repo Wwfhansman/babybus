@@ -2,17 +2,26 @@
 # Create a clean virtual environment before installing:
 # python -m venv .venv && .venv\Scripts\activate
 
-# fastapi
-# uvicorn
-# python-multipart
-# pydantic[dotenv]
-# pillow
+# Flask framework and related packages
+Flask==2.2.5
+Werkzeug==2.2.3
+Flask-CORS==4.0.0
+Flask-SocketIO==5.3.6
 
-# Volcengine Ark SDK (image/LLM APIs). Includes httpx/anyio as transitive deps.
-# volcengine-python-sdk[ark]
+# Core dependencies
+requests==2.31.0
+python-docx==0.8.11
+Pillow==9.5.0
+pydantic
 
-# Ensure modern crypto for SDKs; in a fresh venv this will be fine.
-# cryptography>=44.0.1
+# Volcengine Ark SDK (image/LLM APIs)
+volcengine-python-sdk
 
-# Optional: HTTP client if you prefer using it directly in your code
-# httpx>=0.24
+# Environment variables support
+python-dotenv
+
+# HTTP client
+httpx>=0.24
+
+# Crypto support
+cryptography>=44.0.1
