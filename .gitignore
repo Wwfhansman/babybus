@@ -60,3 +60,8 @@ logs/
 # PIDs
 *.pid
 *.pid.lock
+
+\rules\
+.trae/
+
+.trae/rules/project_rules.md
