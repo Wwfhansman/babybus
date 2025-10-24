@@ -4,8 +4,8 @@ import { electronAPI } from '@electron-toolkit/preload'
 // Custom APIs for renderer（占位，后续可扩展）
 const api = {
   readTextFile: (filePath: string) => ipcRenderer.invoke('fs:readTextFile', filePath),
-  invokeBackend: (route: string, payload: unknown) =>
-    ipcRenderer.invoke('backend:invoke', { route, payload }),
+  invokeBackend: (route: string, payload: unknown, sessionToken?: string) =>
+    ipcRenderer.invoke('backend:invoke', { route, payload, sessionToken }),
   listNovels: () => ipcRenderer.invoke('novel:list'),
   saveNovel: (novel: unknown) => ipcRenderer.invoke('novel:save', novel),
   updateNovel: (novel: unknown) => ipcRenderer.invoke('novel:update', novel),

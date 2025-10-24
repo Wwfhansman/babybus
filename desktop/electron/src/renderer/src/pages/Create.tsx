@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
+import { useAuth } from '@renderer/contexts/AuthContext'
 
 // 简易数据结构与占位数据
 export type Section = { 
@@ -102,7 +103,7 @@ function splitChaptersFromText(text: string): Chapter[] {
   return chapters
 }
 
-const AddNovelDialog: React.FC<{ onClose(): void; onSubmit(n: Novel): void }> = ({ onClose, onSubmit }) => {
+const AddNovelDialog: React.FC<{ onClose(): void; onSubmit(n: Novel): void; sessionToken?: string | null }> = ({ onClose, onSubmit, sessionToken }) => {
   const [tab, setTab] = useState<'text' | 'file'>('text')
   const [text, setText] = useState('')
   const [fileError, setFileError] = useState<string | null>(null)
@@ -120,7 +121,7 @@ const AddNovelDialog: React.FC<{ onClose(): void; onSubmit(n: Novel): void }> = 
     reader.onload = async () => {
       const content = String(reader.result || '')
       try {
-        await window.api.invokeBackend('novel/parse', { text: content })
+        await window.api.invokeBackend('novel/parse', { text: content }, sessionToken)
       } catch {}
       const chapters = splitChaptersFromText(content)
       const novel: Novel = { id: 'novel-' + Date.now(), title: file.name.replace(/\.txt$/i, ''), chapters }
@@ -132,7 +133,7 @@ const AddNovelDialog: React.FC<{ onClose(): void; onSubmit(n: Novel): void }> = 
 
   const submitText = async () => {
     try {
-      await window.api.invokeBackend('novel/parse', { text })
+      await window.api.invokeBackend('novel/parse', { text }, sessionToken)
     } catch {}
     const chapters = splitChaptersFromText(text)
     const novel: Novel = { id: 'novel-' + Date.now(), title: '新小说（单章节）', chapters }
@@ -293,10 +294,16 @@ const NovelSettingsDialog: React.FC<{
 }
 
 const CreatePage: React.FC = () => {
+  const { sessionToken } = useAuth()
   const [novels, setNovels] = useState<Novel[]>([])
   const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null)
-  const selectedNovel = useMemo(() => novels.find((n) => n.id === selectedNovelId) || null, [novels, selectedNovelId])
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null)
+  // 保持最新选择的引用，避免事件监听闭包使用旧值
+  const selectedNovelIdRef = useRef<string | null>(null)
+  const selectedChapterIdRef = useRef<string | null>(null)
+  useEffect(() => { selectedNovelIdRef.current = selectedNovelId }, [selectedNovelId])
+  useEffect(() => { selectedChapterIdRef.current = selectedChapterId }, [selectedChapterId])
+  const selectedNovel = useMemo(() => novels.find((n) => n.id === selectedNovelId) || null, [novels, selectedNovelId])
   const selectedChapter = useMemo(() => selectedNovel?.chapters.find((c) => c.id === selectedChapterId) || null, [selectedNovel, selectedChapterId])
   const [showAdd, setShowAdd] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -417,192 +424,250 @@ const CreatePage: React.FC = () => {
 
   // WebSocket连接管理
   useEffect(() => {
-    // 初始化WebSocket连接
-    const initSocket = () => {
-      if (socketRef.current) return // 已经连接
+    if (!sessionToken) return
 
-      try {
-        const socket = io('http://139.224.101.91:5000', {
-          transports: ['websocket', 'polling'],
-          timeout: 20000,
-          reconnection: true,
-          reconnectionDelay: 1000,
-          reconnectionAttempts: 5,
-          forceNew: true
-        })
-
-        socket.on('connect', () => {
-          console.log('WebSocket连接成功')
-          setComicGeneration(prev => ({
-            ...prev,
-            status: 'idle'
-          }))
-        })
-
-        socket.on('connect_error', (error) => {
-          console.error('WebSocket连接错误:', error)
-          setComicGeneration(prev => ({
-            ...prev,
-            status: 'error',
-            error: `连接服务器失败: ${error.message || '请检查服务器是否正常运行'}`
-          }))
-        })
-
-        socket.on('disconnect', (reason) => {
-          console.log('WebSocket断开连接:', reason)
-          if (comicGeneration.status === 'generating') {
-            setComicGeneration(prev => ({
-              ...prev,
-              status: 'error',
-              error: '连接意外断开，请重试'
-            }))
-          }
-        })
-
-        socket.on('reconnect', (attemptNumber) => {
-          console.log('WebSocket重连成功，尝试次数:', attemptNumber)
-          setComicGeneration(prev => ({
-            ...prev,
-            status: 'idle',
-            error: undefined
-          }))
-        })
-
-        socket.on('reconnect_error', (error) => {
-          console.error('WebSocket重连失败:', error)
-        })
-
-        socket.on('generation_status', (data) => {
-          console.log('生成状态更新:', data)
-          setComicGeneration(prev => ({
-            ...prev,
-            status: 'generating',
-            message: data.message
-          }))
-        })
-
-        socket.on('generation_progress', (data) => {
-          console.log('生成进度更新:', data)
-          setComicGeneration(prev => ({
-            ...prev,
-            progress: {
-              current: data.step,
-              total: data.total,
-              percentage: Math.round((data.step / data.total) * 100)
-            },
-            message: data.message
-          }))
-        })
-
-        socket.on('comics_generation_complete', (data) => {
-          console.log('漫画生成完成:', data)
-          const images: ComicImage[] = data.comic_results?.map((result: any, index: number) => ({
-            id: `comic-${index}`,
-            url: result.image_url || result.url,
-            sceneIndex: index,
-            description: result.description || result.prompt
-          })) || []
-
-          setComicGeneration(prev => ({
-            ...prev,
-            status: 'completed',
-            images,
-            message: data.message
-          }))
-        })
-
-        socket.on('generation_error', (data) => {
-          console.error('漫画生成错误:', data)
-          setComicGeneration(prev => ({
-            ...prev,
-            status: 'error',
-            error: data.error,
-            message: undefined
-          }))
-        })
-
-        socketRef.current = socket
-      } catch (error) {
-        console.error('WebSocket连接失败:', error)
-        setComicGeneration(prev => ({
-          ...prev,
-          status: 'error',
-          error: '无法连接到服务器'
-        }))
-      }
-    }
-
-    initSocket()
-
-    // 清理函数
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect()
-        socketRef.current = null
-      }
-    }
-  }, [])
-
-  // 重试生成功能
-  const retryGeneration = () => {
-    setComicGeneration(prev => ({
-      ...prev,
-      status: 'idle',
-      error: undefined,
-      message: undefined
-    }))
-    // 重新尝试生成
-    setTimeout(() => generateComics(), 100)
-  }
-
-  // 重置生成状态
-  const resetGeneration = () => {
-    setComicGeneration({
-      status: 'idle',
-      progress: { current: 0, total: 0, percentage: 0 },
-      images: [],
-      message: undefined,
-      error: undefined
-    })
-  }
-
-  // 取消生成功能
-  const cancelGeneration = () => {
-<<<<<<< HEAD
-    if (socketRef.current && (comicGeneration.status === 'generating' || comicGeneration.status === 'connecting')) {
-      socketRef.current.emit('cancel_generation')
-=======
-    console.log('取消漫画生成...');
+    console.log('初始化WebSocket连接...')
     
-    // 清除超时定时器
-    if ((window as any).generationTimeout) {
-      clearTimeout((window as any).generationTimeout);
-      delete (window as any).generationTimeout;
-      console.log('已清除生成超时定时器');
-    }
+    // 创建WebSocket连接
+    const socket = io('http://139.224.101.91:5000', {
+      transports: ['websocket', 'polling'],
+      timeout: 10000,
+      forceNew: true,
+      reconnection: false
+    })
 
-    if (socketRef.current && (comicGeneration.status === 'generating' || comicGeneration.status === 'connecting')) {
-      console.log('发送取消请求到服务器');
-      socketRef.current.emit('cancel_generation', { 
-        process_id: selectedNovel?.id 
-      });
-      
->>>>>>> 61fac845b79edacab33f62b90c5b7868d4e03ab4
+    socketRef.current = socket
+
+    // 连接成功
+    socket.on('connect', () => {
+      console.log('WebSocket连接成功，发送认证请求...')
+      // 连接成功后发送认证请求
+      socket.emit('authenticate', { session_token: sessionToken })
+    })
+
+    // 监听认证结果
+    socket.on('authentication_result', (data) => {
+      console.log('收到认证结果:', data)
+      if (data.success) {
+        console.log('认证成功！')
+      } else {
+        console.error('认证失败:', data.error)
+      }
+    })
+
+    // 连接错误
+    socket.on('connect_error', (error) => {
+      console.error('WebSocket连接错误:', error)
+    })
+
+    // 移除：局部定义的 sanitizeUrl，改为使用模块级函数
+    // 监听漫画生成完成事件
+    socket.on('comics_generation_complete', (data) => {
+      console.log('收到comics_generation_complete事件:', data)
+      const source = Array.isArray((data as any).comic_results)
+        ? (data as any).comic_results
+        : Array.isArray((data as any).images)
+          ? (data as any).images
+          : []
+      const images = source.map((item: any, idx: number) => ({
+        id: `img-${idx + 1}`,
+        url: sanitizeUrl(item?.image_url || item?.url || item?.imageUrl || ''),
+        sceneIndex: (item?.scene_index ?? idx + 1)
+      }))
+      console.log('映射后的图片URL列表(前5项):', images.slice(0, 5).map(i => i.url))
       setComicGeneration(prev => ({
         ...prev,
-        status: 'idle',
-        progress: { current: 0, total: 0, percentage: 0 },
-        message: undefined,
-        error: undefined
-<<<<<<< HEAD
+        status: 'completed',
+        images,
+        message: '漫画生成完成！'
       }))
-=======
-      }));
+    })
+
+    // 新增：监听完整流程完成事件
+    socket.on('full_process_complete', (data) => {
+      console.log('收到full_process_complete事件:', data)
+      const images = (data.comic_results || []).map((item: any, idx: number) => ({
+        id: `img-${idx + 1}`,
+        url: sanitizeUrl(item?.image_url || item?.url || item?.imageUrl || ''),
+        sceneIndex: (item?.scene_index ?? idx + 1)
+      }))
+      console.log('映射后的图片URL列表(前5项):', images.slice(0, 5).map(i => i.url))
+
+      setComicGeneration(prev => ({
+        ...prev,
+        status: 'completed',
+        images,
+        progress: {
+          current: data.total_scenes || images.length || 0,
+          total: data.total_scenes || images.length || 0,
+          percentage: 100
+        },
+        message: data.message || '漫画生成完成！'
+      }))
+    })
+
+    // 监听生成进度
+    socket.on('full_process_progress', (data) => {
+      console.log('收到进度更新:', data)
       
-      console.log('漫画生成已取消');
->>>>>>> 61fac845b79edacab33f62b90c5b7868d4e03ab4
+      const current = Number(data.step || data.current || 0)
+      const total = Number(data.total || 0)
+      const percentage = total > 0 ? Math.round((current / total) * 100) : 0
+
+      setComicGeneration(prev => ({
+        ...prev,
+        progress: {
+          current,
+          total,
+          percentage
+        },
+        message: data.message || '正在生成中...'
+      }))
+    })
+
+    // 新增：监听完整流程完成事件
+    socket.on('full_process_complete', (data) => {
+      console.log('收到full_process_complete事件:', data)
+      const images = (data.comic_results || []).map((item: any, idx: number) => ({
+        id: `img-${idx + 1}`,
+        url: item?.image_url || item?.url || item?.imageUrl || '',
+        sceneIndex: (item?.scene_index ?? idx + 1)
+      }))
+
+      setComicGeneration(prev => ({
+        ...prev,
+        status: 'completed',
+        images,
+        progress: {
+          current: data.total_scenes || images.length || 0,
+          total: data.total_scenes || images.length || 0,
+          percentage: 100
+        },
+        message: data.message || '漫画生成完成！'
+      }))
+    })
+
+    // 新增：监听服务器返回的生成错误（找不到处理状态等）
+    socket.on('generation_error', (data) => {
+      console.error('收到generation_error事件:', data)
+      setComicGeneration(prev => ({
+        ...prev,
+        status: 'error',
+        error: data.error || '生成过程中发生错误'
+      }))
+    })
+
+    // 新增：监听文本处理阶段事件（WebSocket识别分镜）
+    socket.on('process_status', (data) => {
+      console.log('文本处理状态:', data)
+      setRecognizing(true)
+    })
+
+    socket.on('process_error', (data) => {
+      console.error('文本处理错误:', data)
+      setRecognizing(false)
+      alert(data.error || '文本处理失败，请稍后重试')
+    })
+
+    socket.on('text_processing_complete', (data) => {
+      console.log('收到text_processing_complete事件:', data)
+      setRecognizing(false)
+
+      const sectionsDetail = Array.isArray((data as any).scenes_detail)
+        ? (data as any).scenes_detail.map((desc: any, idx: number) => ({
+            id: `s-${idx + 1}`,
+            title: typeof desc === 'string' ? (desc.slice(0, 24) || `镜头 ${idx + 1}`) : `镜头 ${idx + 1}`,
+            detail: typeof desc === 'string' ? desc : JSON.stringify(desc),
+            description: typeof desc === 'string' ? desc : JSON.stringify(desc)
+          }))
+        : null
+      
+      const sectionsPreview = (data.scenes_preview || []).map((s: any, idx: number) => ({
+        id: `s-${idx + 1}`,
+        title: s?.description ? (s.description.slice(0, 24) || `镜头 ${idx + 1}`) : `镜头 ${idx + 1}`,
+        detail: s?.description || '',
+        description: s?.description || ''
+      }))
+      
+      const sections = sectionsDetail || sectionsPreview
+      
+      const novelId = selectedNovelIdRef.current
+      const chapterId = selectedChapterIdRef.current
+      if (!novelId || !chapterId) {
+        console.warn('未选择小说或章节，忽略文本处理结果更新')
+        return
+      }
+      
+      setNovels(prev => prev.map(n => n.id === novelId ? ({
+        ...n,
+        chapters: n.chapters.map(ch => ch.id === chapterId ? ({
+          ...ch,
+          sections,
+          processId: data.process_id,
+          scenesCount: data.scenes_count,
+          characterConsistency: data.character_consistency || {},
+          environmentConsistency: data.environment_consistency || {}
+        }) : ch)
+      }) : n))
+    })
+
+    // 新增：监听完整流程文本处理完成事件（full_process_text_complete）
+    socket.on('full_process_text_complete', (data) => {
+      console.log('收到full_process_text_complete事件:', data)
+      setRecognizing(false)
+
+      const sections = (data.scenes_detail || []).map((desc: any, idx: number) => ({
+        id: `s-${idx + 1}`,
+        title: typeof desc === 'string' ? (desc.slice(0, 24) || `镜头 ${idx + 1}`) : `镜头 ${idx + 1}`,
+        detail: typeof desc === 'string' ? desc : JSON.stringify(desc),
+        description: typeof desc === 'string' ? desc : JSON.stringify(desc)
+      }))
+
+      const novelId = selectedNovelIdRef.current
+      const chapterId = selectedChapterIdRef.current
+      if (!novelId || !chapterId) {
+        console.warn('未选择小说或章节，忽略完整流程文本结果更新')
+        return
+      }
+
+      setNovels(prev => prev.map(n => n.id === novelId ? ({
+        ...n,
+        chapters: n.chapters.map(ch => ch.id === chapterId ? ({
+          ...ch,
+          sections,
+          processId: data.process_id,
+          scenesCount: (data.scenes_detail || []).length,
+          characterConsistency: data.character_consistency || {},
+          environmentConsistency: data.environment_consistency || {}
+        }) : ch)
+      }) : n))
+    })
+
+    // 新增：监听完整流程状态（用于在文本阶段显示处理中）
+    socket.on('full_process_status', (data) => {
+      // 在完整流程的前几步（文本处理阶段）显示识别中状态
+      const step = Number(data.step || 0)
+      if (step >= 1 && step <= 3) {
+        setRecognizing(true)
+      }
+    })
+
+    // 监听错误事件
+    socket.on('full_process_error', (data) => {
+      console.error('收到错误事件:', data)
+      
+      setComicGeneration(prev => ({
+        ...prev,
+        status: 'error',
+        error: data.error || '生成过程中发生错误'
+      }))
+    })
+
+    return () => {
+      console.log('清理WebSocket连接')
+      socket.disconnect()
     }
-  }
+  }, [sessionToken])
 
   // 导出漫画功能
   const exportComics = async () => {
@@ -610,25 +675,70 @@ const CreatePage: React.FC = () => {
       alert('没有可导出的图片')
       return
     }
-
+  
+    // 将 data:URL 转为 Blob
+    const dataUrlToBlob = (dataUrl: string) => {
+      try {
+        const [header, base64] = dataUrl.split(',')
+        const mime = header.substring(header.indexOf(':') + 1, header.indexOf(';'))
+        const binary = atob(base64)
+        const len = binary.length
+        const bytes = new Uint8Array(len)
+        for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i)
+        return new Blob([bytes], { type: mime })
+      } catch (e) {
+        console.error('解析 data:URL 失败', e)
+        return new Blob([])
+      }
+    }
+  
+    const mimeToExt = (mime: string) => {
+      if (!mime) return 'bin'
+      if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg'
+      if (mime.includes('png')) return 'png'
+      if (mime.includes('webp')) return 'webp'
+      return 'bin'
+    }
+  
     try {
-      // 创建一个包含所有图片的ZIP文件
       const JSZip = (await import('jszip')).default
       const zip = new JSZip()
-      
-      // 添加每张图片到ZIP
+  
       for (let i = 0; i < comicGeneration.images.length; i++) {
         const image = comicGeneration.images[i]
         try {
-          const response = await fetch(image.url)
-          const blob = await response.blob()
-          zip.file(`scene-${image.sceneIndex + 1}.jpg`, blob)
+          let blob: Blob | null = null
+          let ext = 'jpg'
+  
+          if (image.url.startsWith('data:')) {
+            // 直接处理 data:URL
+            blob = dataUrlToBlob(image.url)
+            const header = image.url.slice(0, image.url.indexOf(','))
+            const mime = header.substring(header.indexOf(':') + 1, header.indexOf(';'))
+            ext = mimeToExt(mime)
+          } else {
+            // 使用主进程代理，避免 CORS，获取 data:URL
+            const resp: any = await (window as any).api.invokeBackend('image/proxy', { url: image.url })
+            if (resp?.ok && resp?.data?.dataUrl) {
+              const dataUrl = resp.data.dataUrl as string
+              blob = dataUrlToBlob(dataUrl)
+              const header = dataUrl.slice(0, dataUrl.indexOf(','))
+              const mime = header.substring(header.indexOf(':') + 1, header.indexOf(';'))
+              ext = mimeToExt(mime)
+            } else {
+              // 兜底：直接 fetch（可能受 CORS 限制）
+              const response = await fetch(image.url)
+              blob = await response.blob()
+              ext = mimeToExt(blob.type)
+            }
+          }
+  
+          zip.file(`scene-${image.sceneIndex + 1}.${ext}`, blob!)
         } catch (error) {
           console.error(`下载图片 ${i + 1} 失败:`, error)
         }
       }
-
-      // 生成ZIP文件并下载
+  
       const content = await zip.generateAsync({ type: 'blob' })
       const url = window.URL.createObjectURL(content)
       const a = document.createElement('a')
@@ -638,7 +748,7 @@ const CreatePage: React.FC = () => {
       a.click()
       document.body.removeChild(a)
       window.URL.revokeObjectURL(url)
-      
+  
       alert('导出成功！')
     } catch (error) {
       console.error('导出失败:', error)
@@ -646,120 +756,114 @@ const CreatePage: React.FC = () => {
     }
   }
 
-  // 漫画生成函数
-  const generateComics = async () => {
-    if (!selectedChapter || !selectedNovelId || !socketRef.current) {
-      alert('请先选择章节并确保连接正常')
-      return
-    }
-
-    // 检查是否有必要的设定
-    if (Object.keys(localCharacters).length === 0 && Object.keys(localEnvironments).length === 0) {
-      if (!confirm('当前没有设置角色和环境，是否继续生成漫画？')) {
+  // 使用历史记录作为测试数据：读取最新一条并代理图片
+  const loadHistoryTestData = async () => {
+    try {
+      if (!sessionToken) {
+        alert('请先登录后再加载历史测试数据')
         return
       }
-    }
-
-    try {
-<<<<<<< HEAD
-=======
-      console.log('开始漫画生成流程...')
->>>>>>> 61fac845b79edacab33f62b90c5b7868d4e03ab4
+      setComicGeneration(prev => ({ ...prev, status: 'connecting', message: '正在加载历史测试数据...' }))
+      const listResp: any = await (window as any).api.invokeBackend('history/list', { limit: 1, offset: 0 }, sessionToken)
+      if (!listResp?.ok) {
+        console.error('获取历史列表失败:', listResp)
+        alert('获取历史列表失败')
+        setComicGeneration(prev => ({ ...prev, status: 'error', error: '获取历史列表失败' }))
+        return
+      }
+      const first = listResp?.data?.history?.[0]
+      if (!first?.process_id) {
+        alert('没有可用的历史记录')
+        setComicGeneration(prev => ({ ...prev, status: 'idle', message: undefined }))
+        return
+      }
+      const detailResp: any = await (window as any).api.invokeBackend('history/detail', { processId: first.process_id }, sessionToken)
+      if (!detailResp?.ok) {
+        console.error('获取历史详情失败:', detailResp)
+        alert('获取历史详情失败')
+        setComicGeneration(prev => ({ ...prev, status: 'error', error: '获取历史详情失败' }))
+        return
+      }
+      const record = detailResp?.data?.history
+      const source: any[] = Array.isArray(record?.comic_results) ? record.comic_results : []
+  
+      const mapped = source.map((item: any, idx: number) => {
+        const raw = sanitizeUrl(item?.image_url || item?.url || item?.imageUrl || '')
+        return { id: `img-${idx + 1}`, rawUrl: raw, sceneIndex: (item?.scene_index ?? idx + 1) }
+      })
+  
+      // 主进程代理图片为 dataURL，绕开CORS
+      const proxied = await Promise.all(mapped.map(async (m) => {
+        try {
+          const p: any = await (window as any).api.invokeBackend('image/proxy', { url: m.rawUrl })
+          const url = p?.ok && p?.data?.dataUrl ? p.data.dataUrl : m.rawUrl
+          return { id: m.id, url, sceneIndex: m.sceneIndex }
+        } catch (e) {
+          console.error('代理图片失败，回退为原始URL:', e)
+          return { id: m.id, url: m.rawUrl, sceneIndex: m.sceneIndex }
+        }
+      }))
+  
       setComicGeneration(prev => ({
         ...prev,
-        status: 'connecting',
-        progress: { current: 0, total: 0, percentage: 0 },
-        images: [],
-        error: undefined,
-        message: '正在连接服务器...'
+        status: 'completed',
+        images: proxied,
+        message: '已加载历史测试数据'
       }))
-
-<<<<<<< HEAD
-=======
-      // 确保WebSocket连接
-      if (!socketRef.current.connected) {
-        console.log('WebSocket未连接，尝试建立连接...')
-        setComicGeneration(prev => ({
-          ...prev,
-          message: '正在建立连接...'
-        }))
-        
-        // 等待连接建立，增加超时处理
-        await new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            console.error('WebSocket连接超时')
-            reject(new Error('连接超时，请检查网络或服务器状态'))
-          }, 30000) // 增加到30秒
-
-          if (socketRef.current?.connected) {
-            console.log('WebSocket已连接')
-            clearTimeout(timeout)
-            resolve(void 0)
-          } else {
-            socketRef.current?.on('connect', () => {
-              console.log('WebSocket连接成功')
-              clearTimeout(timeout)
-              resolve(void 0)
-            })
-            socketRef.current?.on('connect_error', (error) => {
-              console.error('WebSocket连接错误:', error)
-              clearTimeout(timeout)
-              reject(error)
-            })
-          }
-        })
-      }
-
-      console.log('准备发送漫画生成请求...')
-      setComicGeneration(prev => ({
-        ...prev,
-        message: '正在发送生成请求...',
-        progress: { current: 1, total: 10, percentage: 10 }
-      }))
-
->>>>>>> 61fac845b79edacab33f62b90c5b7868d4e03ab4
-      // 准备发送的数据
-      const generationData = {
-        process_id: selectedChapter.processId,
-        chapter_id: selectedChapter.id,
-        chapter_content: selectedChapter.content,
-        character_consistency: localCharacters,
-        environment_consistency: localEnvironments,
-        scenes_detail: selectedChapter.scenesDetail || []
-      }
-
-      console.log('发送漫画生成请求:', generationData)
-
-<<<<<<< HEAD
-      // 通过WebSocket发送生成请求
-      socketRef.current.emit('generate_comics', generationData)
-
-=======
-      // 设置生成超时（30分钟）
-      const generationTimeout = setTimeout(() => {
-        console.error('漫画生成超时')
-        setComicGeneration(prev => ({
-          ...prev,
-          status: 'error',
-          error: '生成超时，请重试或联系管理员'
-        }))
-      }, 30 * 60 * 1000) // 30分钟
-
-      // 通过WebSocket发送生成请求
-      socketRef.current.emit('generate_comics', generationData)
-
-      // 保存超时ID以便取消时清除
-      ;(window as any).generationTimeout = generationTimeout
-
->>>>>>> 61fac845b79edacab33f62b90c5b7868d4e03ab4
-    } catch (error) {
-        console.error('漫画生成请求失败:', error)
-        setComicGeneration(prev => ({
-          ...prev,
-          status: 'error',
-          error: error instanceof Error ? error.message : '生成请求失败，请重试'
-        }))
+    } catch (e) {
+      console.error('加载历史测试数据异常:', e)
+      setComicGeneration(prev => ({ ...prev, status: 'error', error: '加载历史测试数据异常' }))
     }
+  }
+
+  // 简单的漫画生成函数
+  const generateComics = () => {
+    console.log('点击了生成漫画按钮')
+    
+    if (!selectedChapter) {
+      alert('请先选择章节')
+      return
+    }
+    
+    if (!selectedChapter.processId) {
+      alert('该章节尚未进行分镜识别，请先完成分镜识别')
+      return
+    }
+    
+    console.log('准备生成漫画，章节:', selectedChapter.title)
+    console.log('processId:', selectedChapter.processId)
+    
+    // 检查WebSocket连接
+    if (!socketRef.current) {
+      console.log('WebSocket未初始化')
+      alert('WebSocket连接未建立')
+      return
+    }
+    
+    if (!socketRef.current.connected) {
+      console.log('WebSocket未连接')
+      alert('WebSocket连接断开，请刷新页面重试')
+      return
+    }
+    
+    console.log('WebSocket连接正常，发送生成请求...')
+    
+    // 设置生成状态
+    setComicGeneration(prev => ({
+      ...prev,
+      status: 'generating',
+      progress: { current: 1, total: 10, percentage: 10 },
+      images: [],
+      error: undefined,
+      message: '正在生成漫画...'
+    }))
+    
+    // 发送生成请求
+    socketRef.current.emit('start_comics_generation', { 
+      process_id: selectedChapter.processId 
+    })
+    
+    console.log('已发送start_comics_generation事件')
   }
 
   // 初始化：从本地读取小说列表
@@ -780,96 +884,22 @@ const CreatePage: React.FC = () => {
     
     setRecognizing(true)
     try {
-      console.log('开始识别分镜，发送文本到后端...')
+      console.log('开始识别分镜，通过WebSocket发送文本到后端...')
       console.log('发送的文本内容:', text.substring(0, 100) + '...')
-      
-      const res: any = await window.api.invokeBackend('storyboard/recognize', { 
-        chapterId: selectedChapter.id, 
-        text 
-      })
-      
-      console.log('后端完整响应:', JSON.stringify(res, null, 2))
-      
-      if (res.ok && res.sections && Array.isArray(res.sections)) {
-        console.log('解析到的分镜数据:', res.sections)
-        
-        // 使用后端返回的分镜数据
-        const sections: Section[] = res.sections.map((item: any, idx: number) => {
-          console.log(`分镜 ${idx + 1}:`, item)
-          return {
-            id: item.id || `s-${idx + 1}`,
-            title: item.title || `镜头 ${idx + 1}`,
-            detail: item.detail || '',
-            dialogue: item.dialogue || '',
-            description: item.description || item.detail || ''
-          }
-        })
-        
-        console.log('最终分镜数据:', sections)
-        
-        setNovels(prev => prev.map(n => n.id === selectedNovelId ? ({
-          ...n,
-          chapters: n.chapters.map(ch => ch.id === selectedChapter.id ? ({ 
-            ...ch, 
-            sections: sections,
-            // 保存后端处理结果的ID，用于后续生成漫画
-            processId: res.process_id,
-            // 保存角色设定、环境设定等信息
-            scenesCount: res.scenes_count,
-            characterConsistency: res.character_consistency,
-            environmentConsistency: res.environment_consistency,
-            scenesDetail: res.scenes_detail
-          }) : ch)
-        }) : n))
-        
-      } else {
-        // 后端调用失败，使用降级方案
-        console.warn('后端处理失败，使用降级方案:', res.error || '未知错误')
-        console.log('完整响应对象:', res)
-        
-        const fallbackSections = text
-          .split(/[。！？!?\n]+/)
-          .map(s => s.trim())
-          .filter(Boolean)
-          .slice(0, 12)
-          .map((t, i) => ({ 
-            id: `s-${i + 1}`, 
-            title: t.slice(0, 24) || `镜头 ${i + 1}` 
-          }))
-        
-        console.log('降级方案分镜:', fallbackSections)
-        
-        setNovels(prev => prev.map(n => n.id === selectedNovelId ? ({
-          ...n,
-          chapters: n.chapters.map(ch => ch.id === selectedChapter.id ? ({ 
-            ...ch, 
-            sections: fallbackSections 
-          }) : ch)
-        }) : n))
+
+      if (!socketRef.current || !socketRef.current.connected) {
+        console.warn('WebSocket未连接，无法识别分镜')
+        alert('WebSocket连接未建立或已断开，请刷新页面重试')
+        setRecognizing(false)
+        return
       }
-      
+
+      // 通过WebSocket触发文本处理
+      socketRef.current.emit('process_novel', { 
+        novel_text: text 
+      })
     } catch (e) {
       console.error('识别分镜时发生错误:', e)
-      // 发生异常时的降级方案
-      const fallbackSections = text
-        .split(/[。！？!?\n]+/)
-        .map(s => s.trim())
-        .filter(Boolean)
-        .slice(0, 12)
-        .map((t, i) => ({ 
-          id: `s-${i + 1}`, 
-          title: t.slice(0, 24) || `镜头 ${i + 1}` 
-        }))
-      
-      setNovels(prev => prev.map(n => n.id === selectedNovelId ? ({
-        ...n,
-        chapters: n.chapters.map(ch => ch.id === selectedChapter.id ? ({ 
-          ...ch, 
-          sections: fallbackSections 
-        }) : ch)
-      }) : n))
-      
-    } finally {
       setRecognizing(false)
     }
   }
@@ -1203,10 +1233,18 @@ const CreatePage: React.FC = () => {
                 {comicGeneration.status === 'generating' && '生成中...'}
                 {(comicGeneration.status === 'idle' || comicGeneration.status === 'completed' || comicGeneration.status === 'error') && '生成漫画'}
               </button>
-              {(comicGeneration.status === 'generating' || comicGeneration.status === 'connecting') && (
-                <button className="cancel-btn" onClick={cancelGeneration}>取消生成</button>
-              )}
             <button disabled={comicGeneration.images.length === 0} onClick={exportComics}>导出</button>
+            {/* 移除历史测试按钮，新增清空输出 */}
+            <button onClick={() => {
+              setComicGeneration(prev => ({
+                ...prev,
+                status: 'idle',
+                images: [],
+                error: undefined,
+                message: undefined,
+                progress: { current: 0, total: 0, percentage: 0 }
+              }))
+            }}>清空输出</button>
           </div>
         </header>
         <div className="output-body">
@@ -1239,25 +1277,6 @@ const CreatePage: React.FC = () => {
               <div className="status-icon loading">⚡</div>
               <h4>正在生成漫画</h4>
               <p>{comicGeneration.message}</p>
-<<<<<<< HEAD
-              {comicGeneration.progress.total > 0 && (
-                <div className="progress-container">
-                  <div className="progress-bar">
-                    <div 
-                      className="progress-fill" 
-                      style={{ width: `${comicGeneration.progress.percentage}%` }}
-                    ></div>
-                  </div>
-                  <div className="progress-text">
-                    {comicGeneration.progress.current} / {comicGeneration.progress.total} ({comicGeneration.progress.percentage}%)
-                  </div>
-                </div>
-              )}
-              {/* 显示已生成的图片 */}
-              {comicGeneration.images.length > 0 && (
-                <div className="preview-images">
-                  <h5>已生成的图片：</h5>
-=======
               
               {/* 增强的进度显示 */}
               {comicGeneration.progress.total > 0 && (
@@ -1292,17 +1311,26 @@ const CreatePage: React.FC = () => {
               
               {/* 显示已生成的图片 */}
               {comicGeneration.images.length > 0 && (
-                <div className="preview-images">
-                  <h5>已生成的图片 ({comicGeneration.images.length} 张)：</h5>
->>>>>>> 61fac845b79edacab33f62b90c5b7868d4e03ab4
-                  <div className="image-grid">
-                    {comicGeneration.images.map((image) => (
-                      <div key={image.id} className="image-item">
-                        <img src={image.url} alt={`场景 ${image.sceneIndex + 1}`} />
-                        <div className="image-info">场景 {image.sceneIndex + 1}</div>
-                      </div>
-                    ))}
-                  </div>
+                <div className="image-grid">
+                  {comicGeneration.images.map((image) => (
+                    <img 
+                      key={image.id} 
+                      src={image.url} 
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        console.error('图片加载失败:', image.url)
+                        try {
+                          e.currentTarget.alt = '图片加载失败'
+                          e.currentTarget.style.opacity = '0.6'
+                          e.currentTarget.style.borderColor = 'var(--accent)'
+                        } catch {}
+                      }}
+                      onLoad={() => {
+                        console.log('图片加载成功:', image.url)
+                      }}
+                    />
+                  ))}
                 </div>
               )}
             </div>
@@ -1315,33 +1343,23 @@ const CreatePage: React.FC = () => {
               <p>共生成 {comicGeneration.images.length} 张图片</p>
               <div className="image-grid completed">
                 {comicGeneration.images.map((image) => (
-                  <div key={image.id} className="image-item">
-                    <img src={image.url} alt={`场景 ${image.sceneIndex + 1}`} />
-                    <div className="image-info">
-                      <div className="scene-number">场景 {image.sceneIndex + 1}</div>
-                      {image.description && <div className="scene-desc">{image.description}</div>}
-                    </div>
-                    <div className="image-actions">
-                      <button onClick={() => window.open(image.url, '_blank')}>查看大图</button>
-                      <button onClick={async () => {
-                        try {
-                          const response = await fetch(image.url)
-                          const blob = await response.blob()
-                          const url = window.URL.createObjectURL(blob)
-                          const a = document.createElement('a')
-                          a.href = url
-                          a.download = `scene-${image.sceneIndex + 1}.jpg`
-                          document.body.appendChild(a)
-                          a.click()
-                          document.body.removeChild(a)
-                          window.URL.revokeObjectURL(url)
-                        } catch (error) {
-                          console.error('下载失败:', error)
-                          alert('下载失败，请重试')
-                        }
-                      }}>下载</button>
-                    </div>
-                  </div>
+                  <img 
+                    key={image.id} 
+                    src={image.url} 
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      console.error('图片加载失败:', image.url)
+                      try {
+                        e.currentTarget.alt = '图片加载失败'
+                        e.currentTarget.style.opacity = '0.6'
+                        e.currentTarget.style.borderColor = 'var(--accent)'
+                      } catch {}
+                    }}
+                    onLoad={() => {
+                      console.log('图片加载成功:', image.url)
+                    }}
+                  />
                 ))}
               </div>
             </div>
@@ -1353,10 +1371,7 @@ const CreatePage: React.FC = () => {
               <h4>生成失败</h4>
               <p className="error-message">{comicGeneration.error}</p>
               <div className="error-actions">
-                <button onClick={retryGeneration} className="retry-btn">重试</button>
-                <button onClick={resetGeneration}>
-                  重置
-                </button>
+                <button onClick={generateComics} className="retry-btn">重试</button>
               </div>
             </div>
           )}
@@ -1365,6 +1380,7 @@ const CreatePage: React.FC = () => {
 
       {showAdd && (
         <AddNovelDialog
+          sessionToken={sessionToken}
           onClose={() => setShowAdd(false)}
           onSubmit={async (n) => {
             await window.api.saveNovel(n as any)
@@ -1399,3 +1415,13 @@ const CreatePage: React.FC = () => {
 }
 
 export default CreatePage
+// 将URL清理函数提升为模块级，供全文件复用
+function sanitizeUrl(u: any) {
+  try {
+    const s = String(u ?? '').trim()
+    // 去掉包裹的引号或多余空格
+    return s.replace(/^"|"$/g, '').replace(/^'|'$/g, '')
+  } catch {
+    return ''
+  }
+}

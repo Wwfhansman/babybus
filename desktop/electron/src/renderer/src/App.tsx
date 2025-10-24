@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { AuthProvider } from '@renderer/contexts/AuthContext'
+import AuthGuard from '@renderer/components/AuthGuard'
 import Sidebar from '@renderer/components/Sidebar'
 import CreatePage from '@renderer/pages/Create'
+import ProfilePage from '@renderer/pages/Profile'
 
 const PagePlaceholder = ({ title }: { title: string }) => (
   <div className="page-placeholder">
@@ -39,31 +42,35 @@ const Shell: React.FC = () => {
   const location = useLocation()
   const onToggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
   return (
-    <div className="shell">
-      <Sidebar activePath={location.pathname} />
-      <div className="content">
-        <TopBar theme={theme} onToggle={onToggleTheme} />
-        <div className="view">
-          <Routes>
-            <Route path="/" element={<Navigate to="/create" replace />} />
-            <Route path="/home" element={<PagePlaceholder title="主页" />} />
-            <Route path="/create" element={<CreatePage />} />
-            <Route path="/library" element={<PagePlaceholder title="素材库" />} />
-            <Route path="/profile" element={<PagePlaceholder title="个人中心" />} />
-            <Route path="/help" element={<PagePlaceholder title="帮助" />} />
-            <Route path="*" element={<PagePlaceholder title="未找到页面" />} />
-          </Routes>
+    <AuthGuard>
+      <div className="shell">
+        <Sidebar activePath={location.pathname} />
+        <div className="content">
+          <TopBar theme={theme} onToggle={onToggleTheme} />
+          <div className="view">
+            <Routes>
+              <Route path="/" element={<Navigate to="/create" replace />} />
+              <Route path="/home" element={<PagePlaceholder title="主页" />} />
+              <Route path="/create" element={<CreatePage />} />
+              <Route path="/library" element={<PagePlaceholder title="素材库" />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/help" element={<PagePlaceholder title="帮助" />} />
+              <Route path="*" element={<PagePlaceholder title="未找到页面" />} />
+            </Routes>
+          </div>
         </div>
       </div>
-    </div>
+    </AuthGuard>
   )
 }
 
 const App: React.FC = () => {
   return (
-    <HashRouter>
-      <Shell />
-    </HashRouter>
+    <AuthProvider>
+      <HashRouter>
+        <Shell />
+      </HashRouter>
+    </AuthProvider>
   )
 }
 

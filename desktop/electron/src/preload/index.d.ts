@@ -5,7 +5,7 @@ declare global {
     electron: ElectronAPI
     api: {
       readTextFile: (filePath: string) => Promise<string>
-      invokeBackend: (route: string, payload: unknown) => Promise<unknown>
+      invokeBackend: (route: string, payload: unknown, sessionToken?: string) => Promise<unknown>
       listNovels: () => Promise<NovelDTO[]>
       saveNovel: (novel: NovelDTO) => Promise<{ ok: boolean; path: string }>
       updateNovel: (novel: NovelDTO) => Promise<{ ok: boolean; path: string }>

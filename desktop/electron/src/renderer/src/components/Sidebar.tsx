@@ -1,5 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '@renderer/contexts/AuthContext'
 
 const NAVS = [
   {
@@ -50,6 +51,7 @@ const NAVS = [
 ]
 
 const Sidebar: React.FC<{ activePath?: string }> = ({ activePath }) => {
+  // 移除侧边栏底部用户信息展示与退出按钮，改由个人中心页承载
   return (
     <div className="sidebar">
       <div className="sidebar-title" style={{ display: 'none' }}>

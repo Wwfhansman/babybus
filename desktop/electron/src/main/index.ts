@@ -70,121 +70,70 @@ app.whenReady().then(() => {
 
   ipcMain.handle(
     'backend:invoke',
-    async (_e, { route, payload }: { route: string; payload: unknown }) => {
+    async (_e, { route, payload, sessionToken }: { route: string; payload: unknown; sessionToken?: string }) => {
       try {
-        // 后端服务器地址
         const BACKEND_URL = 'http://139.224.101.91:5000'
-        
-        // 根据路由映射到具体的API端点
+      
         let apiEndpoint = ''
         let requestData = payload
-        
+        let method: 'GET' | 'POST' | 'DELETE' = 'POST'
+        let url = ''
+      
         if (route === 'storyboard/recognize') {
-          // 识别分镜：调用处理小说文本的API
           apiEndpoint = '/api/process-novel'
-          requestData = {
-            novel_text: (payload as any)?.text || ''
+          requestData = { novel_text: (payload as any)?.text || '' }
+          method = 'POST'
+        } else if (route === 'history/list') {
+          const limit = (payload as any)?.limit ?? 10
+          const offset = (payload as any)?.offset ?? 0
+          apiEndpoint = `/api/history?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`
+          method = 'GET'
+        } else if (route === 'history/detail') {
+          const processId = (payload as any)?.processId
+          if (!processId) return { route, ok: false, error: 'Missing processId' }
+          apiEndpoint = `/api/history/${encodeURIComponent(processId)}`
+          method = 'GET'
+        } else if (route === 'history/delete') {
+          const historyId = (payload as any)?.historyId
+          if (!historyId && historyId !== 0) return { route, ok: false, error: 'Missing historyId' }
+          apiEndpoint = `/api/history/${encodeURIComponent(historyId)}`
+          method = 'DELETE'
+        } else if (route === 'image/proxy') {
+          const imageUrl = String((payload as any)?.url || '')
+          if (!imageUrl) return { route, ok: false, error: 'Missing image url' }
+          try {
+            const resp = await fetch(imageUrl, { method: 'GET' })
+            if (!resp.ok) {
+              return { route, ok: false, status: resp.status, statusText: resp.statusText }
+            }
+            const contentType = resp.headers.get('content-type') || 'image/jpeg'
+            const buf = Buffer.from(await resp.arrayBuffer())
+            const dataUrl = `data:${contentType};base64,${buf.toString('base64')}`
+            return { route, ok: true, data: { dataUrl, contentType } }
+          } catch (err: any) {
+            return { route, ok: false, error: err?.message || String(err) }
           }
         } else {
-          // 其他路由的占位处理
           return { route, ok: false, error: 'Unknown route' }
         }
-        
-        // 发送HTTP请求到后端
-        const response = await fetch(`${BACKEND_URL}${apiEndpoint}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestData)
-        })
-        
+      
+        url = `${BACKEND_URL}${apiEndpoint}`
+      
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (sessionToken) headers['Authorization'] = `Bearer ${sessionToken}`
+      
+        const options: any = { method, headers }
+        if (method !== 'GET' && method !== 'DELETE') options.body = JSON.stringify(requestData)
+      
+        const response = await fetch(url, options)
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+          return { route, ok: false, status: response.status, statusText: response.statusText }
         }
-        
-        const result = await response.json()
-        
-        // 处理返回结果，转换为前端期望的格式
-        if (route === 'storyboard/recognize') {
-          console.log('=== 主进程处理 storyboard/recognize ===')
-          console.log('后端原始响应:', JSON.stringify(result, null, 2))
-          
-          // 从后端LLM结果中提取分镜信息
-          const llmResult = result.llm_result
-          console.log('LLM结果:', JSON.stringify(llmResult, null, 2))
-          
-          let sections = []
-          // 在外层作用域定义scenesDetail变量
-          let scenesDetail = []
-          
-          if (llmResult) {
-            // 获取各种数据数组
-            const scenes = llmResult.scenes || []
-            scenesDetail = llmResult.scenes_detail || []
-            const dialogue = llmResult.dialogue || []
-            
-            console.log('scenes:', scenes)
-            console.log('scenes_detail:', scenesDetail)
-            console.log('dialogue:', dialogue)
-            
-            // 确定分镜数量（以最长的数组为准）
-            const maxLength = Math.max(scenes.length, scenesDetail.length, dialogue.length)
-            console.log('分镜数量:', maxLength)
-            
-            // 组合完整的分镜信息
-            for (let i = 0; i < maxLength; i++) {
-              const sceneTitle = scenes[i] || `场景 ${i + 1}`
-              const sceneDetail = scenesDetail[i] || ''
-              const sceneDialogue = dialogue[i] || ''
-              
-              // 清理详细描述（去除"图片X："前缀）
-              const cleanDetail = sceneDetail.replace(/^图片\d+：/, '').trim()
-              
-              // 清理对话（去除"对白X："前缀）
-              const cleanDialogue = sceneDialogue.replace(/^对白\d+：/, '').trim()
-              
-              const section = {
-                id: `scene-${i + 1}`,
-                title: sceneTitle.trim(),
-                detail: cleanDetail,
-                dialogue: cleanDialogue,
-                // 为了向后兼容，保留原有的description字段
-                description: cleanDetail
-              }
-              
-              console.log(`分镜 ${i + 1}:`, section)
-              sections.push(section)
-            }
-          }
-          
-          console.log('最终生成的sections:', sections)
-          
-          const finalResult = {
-            ok: true,
-            sections: sections,
-            process_id: result.process_id,
-            scenes_count: sections.length,
-            character_consistency: llmResult?.character_consistency || {},
-            environment_consistency: llmResult?.environment_consistency || {},
-            scenes_detail: scenesDetail,
-            raw_result: result
-          }
-          
-          console.log('返回给前端的最终结果:', JSON.stringify(finalResult, null, 2))
-          
-          return finalResult
-        }
-        
-        return { ok: true, result }
-        
-      } catch (error) {
-        console.error('Backend API call failed:', error)
-        return { 
-          ok: false, 
-          error: error instanceof Error ? error.message : 'Unknown error',
-          route 
-        }
+        const contentType = response.headers.get('content-type') || ''
+        const result = contentType.includes('application/json') ? await response.json() : await response.text()
+        return { route, ok: true, data: result }
+      } catch (error: any) {
+        return { route, ok: false, error: error?.message || String(error) }
       }
     }
   )
