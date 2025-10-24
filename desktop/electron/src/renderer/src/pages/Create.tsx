@@ -1,11 +1,48 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
+import { io, Socket } from 'socket.io-client'
 
 // 简易数据结构与占位数据
-export type Section = { id: string; title: string }
+export type Section = { 
+  id: string; 
+  title: string;
+  detail?: string;
+  dialogue?: string;
+  description?: string;
+}
 // 将章节类型扩展为包含正文内容
-export type Chapter = { id: string; title: string; sections: Section[]; content?: string }
+export type Chapter = { 
+  id: string; 
+  title: string; 
+  sections: Section[]; 
+  content?: string;
+  processId?: string;
+  scenesCount?: number;
+  characterConsistency?: Record<string, string>;
+  environmentConsistency?: Record<string, string>;
+  scenesDetail?: string[];
+}
 export type Character = { name: string; imagePath?: string }
 export type Novel = { id: string; title: string; chapters: Chapter[]; characters?: Character[] }
+
+// 漫画生成相关类型定义
+export type ComicGenerationStatus = 'idle' | 'connecting' | 'generating' | 'completed' | 'error'
+export type ComicImage = {
+  id: string;
+  url: string;
+  sceneIndex: number;
+  description?: string;
+}
+export type ComicGenerationState = {
+  status: ComicGenerationStatus;
+  progress: {
+    current: number;
+    total: number;
+    percentage: number;
+  };
+  images: ComicImage[];
+  error?: string;
+  message?: string;
+}
 
 // 移除样例小说：从本地读取
 
@@ -58,9 +95,8 @@ function splitChaptersFromText(text: string): Chapter[] {
 
   // 基于正文粗略生成分镜片段（最多 12 条）
   chapters.forEach((ch) => {
-    const body = ch.content || ''
-    const parts = body.split(/[。！？!?,，\n]+/).map((s) => s.trim()).filter(Boolean).slice(0, 12)
-    ch.sections = parts.map((t, i) => ({ id: `s-${i + 1}`, title: t.slice(0, 24) || `镜头 ${i + 1}` }))
+    // 不再自动生成sections，保持为空数组
+    ch.sections = []
   })
 
   return chapters
@@ -228,7 +264,7 @@ const NovelSettingsDialog: React.FC<{
                 <div key={idx} className="character-item">
                   <div className="preview">
 -                    {c.imagePath ? (<img src={(c.imagePath.startsWith('file://') ? c.imagePath : ('file://' + c.imagePath))} alt={c.name} />) : (<div className="placeholder">无图</div>)}
-+                    {previewUrls[idx] ? (<img src={previewUrls[idx]} alt={c.name} />) : (<div className="placeholder">无图</div>)}
++                    {c.imagePath ? (<img src={(c.imagePath.startsWith('file://') ? c.imagePath : ('file://' + c.imagePath))} alt={c.name} />) : (<div className="placeholder">无图</div>)}
                   </div>
                   <div className="meta">
                     <input value={c.name} onChange={(e) => {
@@ -272,6 +308,369 @@ const CreatePage: React.FC = () => {
   const [recognizing, setRecognizing] = useState(false)
   const [settingsForId, setSettingsForId] = useState<string | null>(null)
 
+  // 角色设定和环境设定的本地状态管理
+  const [localCharacters, setLocalCharacters] = useState<Record<string, string>>({})
+  const [localEnvironments, setLocalEnvironments] = useState<Record<string, string>>({})
+
+  // 漫画生成状态管理
+  const [comicGeneration, setComicGeneration] = useState<ComicGenerationState>({
+    status: 'idle',
+    progress: { current: 0, total: 0, percentage: 0 },
+    images: [],
+    error: undefined,
+    message: undefined
+  })
+  const socketRef = useRef<Socket | null>(null)
+
+  // 当选择章节变化时，同步本地状态
+  useEffect(() => {
+    if (selectedChapter) {
+      setLocalCharacters(selectedChapter.characterConsistency || {})
+      setLocalEnvironments(selectedChapter.environmentConsistency || {})
+    } else {
+      setLocalCharacters({})
+      setLocalEnvironments({})
+    }
+  }, [selectedChapter])
+
+  // 角色管理函数
+  const addCharacter = () => {
+    const newKey = `角色${Object.keys(localCharacters).length + 1}`
+    setLocalCharacters(prev => ({ ...prev, [newKey]: '' }))
+  }
+
+  const updateCharacterName = (oldName: string, newName: string) => {
+    if (oldName === newName) return
+    setLocalCharacters(prev => {
+      const newCharacters = { ...prev }
+      if (newName && !newCharacters[newName]) {
+        newCharacters[newName] = newCharacters[oldName] || ''
+        delete newCharacters[oldName]
+      }
+      return newCharacters
+    })
+  }
+
+  const updateCharacterDesc = (name: string, desc: string) => {
+    setLocalCharacters(prev => ({ ...prev, [name]: desc }))
+  }
+
+  const removeCharacter = (name: string) => {
+    console.log('删除角色:', name) // 添加调试日志
+    setLocalCharacters(prev => {
+      const newCharacters = { ...prev }
+      delete newCharacters[name]
+      console.log('删除后的角色列表:', newCharacters) // 添加调试日志
+      return newCharacters
+    })
+    // 立即保存到章节数据
+    setTimeout(() => saveSettings(), 0)
+  }
+
+  // 环境管理函数
+  const addEnvironment = () => {
+    const newKey = `环境${Object.keys(localEnvironments).length + 1}`
+    setLocalEnvironments(prev => ({ ...prev, [newKey]: '' }))
+  }
+
+  const updateEnvironmentName = (oldName: string, newName: string) => {
+    if (oldName === newName) return
+    setLocalEnvironments(prev => {
+      const newEnvironments = { ...prev }
+      if (newName && !newEnvironments[newName]) {
+        newEnvironments[newName] = newEnvironments[oldName] || ''
+        delete newEnvironments[oldName]
+      }
+      return newEnvironments
+    })
+  }
+
+  const updateEnvironmentDesc = (name: string, desc: string) => {
+    setLocalEnvironments(prev => ({ ...prev, [name]: desc }))
+  }
+
+  const removeEnvironment = (name: string) => {
+    console.log('删除环境:', name) // 添加调试日志
+    setLocalEnvironments(prev => {
+      const newEnvironments = { ...prev }
+      delete newEnvironments[name]
+      console.log('删除后的环境列表:', newEnvironments) // 添加调试日志
+      return newEnvironments
+    })
+    // 立即保存到章节数据
+    setTimeout(() => saveSettings(), 0)
+  }
+
+  // 保存设定到章节数据
+  const saveSettings = () => {
+    if (!selectedChapter || !selectedNovelId) return
+    
+    setNovels(prev => prev.map(n => n.id === selectedNovelId ? ({
+      ...n,
+      chapters: n.chapters.map(ch => ch.id === selectedChapter.id ? ({
+        ...ch,
+        characterConsistency: localCharacters,
+        environmentConsistency: localEnvironments
+      }) : ch)
+    }) : n))
+  }
+
+  // WebSocket连接管理
+  useEffect(() => {
+    // 初始化WebSocket连接
+    const initSocket = () => {
+      if (socketRef.current) return // 已经连接
+
+      try {
+        const socket = io('http://139.224.101.91:5000', {
+          transports: ['websocket', 'polling'],
+          timeout: 20000,
+          reconnection: true,
+          reconnectionDelay: 1000,
+          reconnectionAttempts: 5,
+          forceNew: true
+        })
+
+        socket.on('connect', () => {
+          console.log('WebSocket连接成功')
+          setComicGeneration(prev => ({
+            ...prev,
+            status: 'idle'
+          }))
+        })
+
+        socket.on('connect_error', (error) => {
+          console.error('WebSocket连接错误:', error)
+          setComicGeneration(prev => ({
+            ...prev,
+            status: 'error',
+            error: `连接服务器失败: ${error.message || '请检查服务器是否正常运行'}`
+          }))
+        })
+
+        socket.on('disconnect', (reason) => {
+          console.log('WebSocket断开连接:', reason)
+          if (comicGeneration.status === 'generating') {
+            setComicGeneration(prev => ({
+              ...prev,
+              status: 'error',
+              error: '连接意外断开，请重试'
+            }))
+          }
+        })
+
+        socket.on('reconnect', (attemptNumber) => {
+          console.log('WebSocket重连成功，尝试次数:', attemptNumber)
+          setComicGeneration(prev => ({
+            ...prev,
+            status: 'idle',
+            error: undefined
+          }))
+        })
+
+        socket.on('reconnect_error', (error) => {
+          console.error('WebSocket重连失败:', error)
+        })
+
+        socket.on('generation_status', (data) => {
+          console.log('生成状态更新:', data)
+          setComicGeneration(prev => ({
+            ...prev,
+            status: 'generating',
+            message: data.message
+          }))
+        })
+
+        socket.on('generation_progress', (data) => {
+          console.log('生成进度更新:', data)
+          setComicGeneration(prev => ({
+            ...prev,
+            progress: {
+              current: data.step,
+              total: data.total,
+              percentage: Math.round((data.step / data.total) * 100)
+            },
+            message: data.message
+          }))
+        })
+
+        socket.on('comics_generation_complete', (data) => {
+          console.log('漫画生成完成:', data)
+          const images: ComicImage[] = data.comic_results?.map((result: any, index: number) => ({
+            id: `comic-${index}`,
+            url: result.image_url || result.url,
+            sceneIndex: index,
+            description: result.description || result.prompt
+          })) || []
+
+          setComicGeneration(prev => ({
+            ...prev,
+            status: 'completed',
+            images,
+            message: data.message
+          }))
+        })
+
+        socket.on('generation_error', (data) => {
+          console.error('漫画生成错误:', data)
+          setComicGeneration(prev => ({
+            ...prev,
+            status: 'error',
+            error: data.error,
+            message: undefined
+          }))
+        })
+
+        socketRef.current = socket
+      } catch (error) {
+        console.error('WebSocket连接失败:', error)
+        setComicGeneration(prev => ({
+          ...prev,
+          status: 'error',
+          error: '无法连接到服务器'
+        }))
+      }
+    }
+
+    initSocket()
+
+    // 清理函数
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect()
+        socketRef.current = null
+      }
+    }
+  }, [])
+
+  // 重试生成功能
+  const retryGeneration = () => {
+    setComicGeneration(prev => ({
+      ...prev,
+      status: 'idle',
+      error: undefined,
+      message: undefined
+    }))
+    // 重新尝试生成
+    setTimeout(() => generateComics(), 100)
+  }
+
+  // 重置生成状态
+  const resetGeneration = () => {
+    setComicGeneration({
+      status: 'idle',
+      progress: { current: 0, total: 0, percentage: 0 },
+      images: [],
+      message: undefined,
+      error: undefined
+    })
+  }
+
+  // 取消生成功能
+  const cancelGeneration = () => {
+    if (socketRef.current && (comicGeneration.status === 'generating' || comicGeneration.status === 'connecting')) {
+      socketRef.current.emit('cancel_generation')
+      setComicGeneration(prev => ({
+        ...prev,
+        status: 'idle',
+        progress: { current: 0, total: 0, percentage: 0 },
+        message: undefined,
+        error: undefined
+      }))
+    }
+  }
+
+  // 导出漫画功能
+  const exportComics = async () => {
+    if (comicGeneration.images.length === 0) {
+      alert('没有可导出的图片')
+      return
+    }
+
+    try {
+      // 创建一个包含所有图片的ZIP文件
+      const JSZip = (await import('jszip')).default
+      const zip = new JSZip()
+      
+      // 添加每张图片到ZIP
+      for (let i = 0; i < comicGeneration.images.length; i++) {
+        const image = comicGeneration.images[i]
+        try {
+          const response = await fetch(image.url)
+          const blob = await response.blob()
+          zip.file(`scene-${image.sceneIndex + 1}.jpg`, blob)
+        } catch (error) {
+          console.error(`下载图片 ${i + 1} 失败:`, error)
+        }
+      }
+
+      // 生成ZIP文件并下载
+      const content = await zip.generateAsync({ type: 'blob' })
+      const url = window.URL.createObjectURL(content)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${selectedChapter?.title || '漫画'}-${new Date().toISOString().slice(0, 10)}.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+      
+      alert('导出成功！')
+    } catch (error) {
+      console.error('导出失败:', error)
+      alert('导出失败，请重试')
+    }
+  }
+
+  // 漫画生成函数
+  const generateComics = async () => {
+    if (!selectedChapter || !selectedNovelId || !socketRef.current) {
+      alert('请先选择章节并确保连接正常')
+      return
+    }
+
+    // 检查是否有必要的设定
+    if (Object.keys(localCharacters).length === 0 && Object.keys(localEnvironments).length === 0) {
+      if (!confirm('当前没有设置角色和环境，是否继续生成漫画？')) {
+        return
+      }
+    }
+
+    try {
+      setComicGeneration(prev => ({
+        ...prev,
+        status: 'connecting',
+        progress: { current: 0, total: 0, percentage: 0 },
+        images: [],
+        error: undefined,
+        message: '正在连接服务器...'
+      }))
+
+      // 准备发送的数据
+      const generationData = {
+        process_id: selectedChapter.processId,
+        chapter_id: selectedChapter.id,
+        chapter_content: selectedChapter.content,
+        character_consistency: localCharacters,
+        environment_consistency: localEnvironments,
+        scenes_detail: selectedChapter.scenesDetail || []
+      }
+
+      console.log('发送漫画生成请求:', generationData)
+
+      // 通过WebSocket发送生成请求
+      socketRef.current.emit('generate_comics', generationData)
+
+    } catch (error) {
+        console.error('漫画生成请求失败:', error)
+        setComicGeneration(prev => ({
+          ...prev,
+          status: 'error',
+          error: error instanceof Error ? error.message : '生成请求失败，请重试'
+        }))
+    }
+  }
+
   // 初始化：从本地读取小说列表
   useEffect(() => {
     (async () => {
@@ -287,23 +686,98 @@ const CreatePage: React.FC = () => {
     if (!selectedChapter || !selectedNovelId) return
     const text = selectedChapter.content || ''
     if (!text) return
+    
     setRecognizing(true)
     try {
-      const res: any = await window.api.invokeBackend('storyboard/recognize', { chapterId: selectedChapter.id, text })
-      const sections: Section[] | null = Array.isArray(res?.sections)
-        ? res.sections.map((item: any, idx: number) => ({ id: `s-${idx+1}`, title: typeof item === 'string' ? item : (item?.title || `镜头 ${idx+1}`) }))
-        : null
-      const finalSections = sections && sections.length ? sections : (text.split(/[。！？!?\n]+/).map(s => s.trim()).filter(Boolean).slice(0, 12).map((t, i) => ({ id: `s-${i+1}`, title: t.slice(0, 24) || `镜头 ${i+1}` })))
-      setNovels(prev => prev.map(n => n.id === selectedNovelId ? ({
-        ...n,
-        chapters: n.chapters.map(ch => ch.id === selectedChapter.id ? ({ ...ch, sections: finalSections }) : ch)
-      }) : n))
+      console.log('开始识别分镜，发送文本到后端...')
+      console.log('发送的文本内容:', text.substring(0, 100) + '...')
+      
+      const res: any = await window.api.invokeBackend('storyboard/recognize', { 
+        chapterId: selectedChapter.id, 
+        text 
+      })
+      
+      console.log('后端完整响应:', JSON.stringify(res, null, 2))
+      
+      if (res.ok && res.sections && Array.isArray(res.sections)) {
+        console.log('解析到的分镜数据:', res.sections)
+        
+        // 使用后端返回的分镜数据
+        const sections: Section[] = res.sections.map((item: any, idx: number) => {
+          console.log(`分镜 ${idx + 1}:`, item)
+          return {
+            id: item.id || `s-${idx + 1}`,
+            title: item.title || `镜头 ${idx + 1}`,
+            detail: item.detail || '',
+            dialogue: item.dialogue || '',
+            description: item.description || item.detail || ''
+          }
+        })
+        
+        console.log('最终分镜数据:', sections)
+        
+        setNovels(prev => prev.map(n => n.id === selectedNovelId ? ({
+          ...n,
+          chapters: n.chapters.map(ch => ch.id === selectedChapter.id ? ({ 
+            ...ch, 
+            sections: sections,
+            // 保存后端处理结果的ID，用于后续生成漫画
+            processId: res.process_id,
+            // 保存角色设定、环境设定等信息
+            scenesCount: res.scenes_count,
+            characterConsistency: res.character_consistency,
+            environmentConsistency: res.environment_consistency,
+            scenesDetail: res.scenes_detail
+          }) : ch)
+        }) : n))
+        
+      } else {
+        // 后端调用失败，使用降级方案
+        console.warn('后端处理失败，使用降级方案:', res.error || '未知错误')
+        console.log('完整响应对象:', res)
+        
+        const fallbackSections = text
+          .split(/[。！？!?\n]+/)
+          .map(s => s.trim())
+          .filter(Boolean)
+          .slice(0, 12)
+          .map((t, i) => ({ 
+            id: `s-${i + 1}`, 
+            title: t.slice(0, 24) || `镜头 ${i + 1}` 
+          }))
+        
+        console.log('降级方案分镜:', fallbackSections)
+        
+        setNovels(prev => prev.map(n => n.id === selectedNovelId ? ({
+          ...n,
+          chapters: n.chapters.map(ch => ch.id === selectedChapter.id ? ({ 
+            ...ch, 
+            sections: fallbackSections 
+          }) : ch)
+        }) : n))
+      }
+      
     } catch (e) {
-      const fallback = text.split(/[。！？!?\n]+/).map(s => s.trim()).filter(Boolean).slice(0, 12).map((t, i) => ({ id: `s-${i+1}`, title: t.slice(0, 24) || `镜头 ${i+1}` }))
+      console.error('识别分镜时发生错误:', e)
+      // 发生异常时的降级方案
+      const fallbackSections = text
+        .split(/[。！？!?\n]+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .slice(0, 12)
+        .map((t, i) => ({ 
+          id: `s-${i + 1}`, 
+          title: t.slice(0, 24) || `镜头 ${i + 1}` 
+        }))
+      
       setNovels(prev => prev.map(n => n.id === selectedNovelId ? ({
         ...n,
-        chapters: n.chapters.map(ch => ch.id === selectedChapter.id ? ({ ...ch, sections: fallback }) : ch)
+        chapters: n.chapters.map(ch => ch.id === selectedChapter.id ? ({ 
+          ...ch, 
+          sections: fallbackSections 
+        }) : ch)
       }) : n))
+      
     } finally {
       setRecognizing(false)
     }
@@ -428,8 +902,18 @@ const CreatePage: React.FC = () => {
           )}
           <div className="actions">
             <button className="primary" disabled={!selectedChapter?.content || recognizing} onClick={recognizeStoryboard}>
-              {recognizing ? '识别中…' : '识别分镜'}
+              {recognizing ? (
+                <span className="loading-text">
+                  <span className="spinner">⏳</span>
+                  正在识别分镜...
+                </span>
+              ) : '识别分镜'}
             </button>
+            {recognizing && (
+              <div className="loading-tip">
+                正在将章节内容发送到后端进行AI分析，请稍候...
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -438,21 +922,175 @@ const CreatePage: React.FC = () => {
       <section className="panel settings-panel fade-in" onClick={() => drawerOpen && setDrawerOpen(false)}>
         <header>
           <h3>设定编辑区</h3>
-          <div className="actions">
-            <button>保存设定</button>
-          </div>
         </header>
         <div className="settings-body">
           {selectedChapter ? (
             <div className="storyboard">
-              <h4>分镜（占位） - {selectedChapter.title}</h4>
-              <ul>
-                {selectedChapter.sections.map((s) => (
-                  <li key={s.id}>
-                    <input defaultValue={s.title} />
-                  </li>
-                ))}
-              </ul>
+              <h4>分镜设定 - {selectedChapter.title}</h4>
+              {recognizing ? (
+                <div className="processing-status">
+                  <div className="status-indicator">
+                    <span className="spinner">🔄</span>
+                    <span>正在处理章节内容...</span>
+                  </div>
+                  <div className="status-details">
+                    后端AI正在分析文本并生成分镜数据，请稍候
+                  </div>
+                </div>
+              ) : selectedChapter.sections.length > 0 ? (
+                <div className="storyboard-content">
+                  {/* 处理结果概览 */}
+                  <div className="result-overview">
+                    <div className="overview-item">
+                      <strong>处理ID:</strong> {selectedChapter.processId || '未知'}
+                    </div>
+                    <div className="overview-item">
+                      <strong>场景数量:</strong> {selectedChapter.scenesCount || selectedChapter.sections.length}
+                    </div>
+                  </div>
+
+                  {/* 角色设定 */}
+                  <div className="consistency-section">
+                    <h5>角色设定</h5>
+                    <div className="consistency-list">
+                      {Object.keys(localCharacters).length > 0 ? (
+                        Object.entries(localCharacters).map(([name, desc]) => (
+                          <div key={name} className="consistency-item editable">
+                            <input 
+                              type="text" 
+                              value={name}
+                              placeholder="角色名称"
+                              className="character-name-input"
+                              onChange={(e) => updateCharacterName(name, e.target.value)}
+                              onBlur={saveSettings}
+                            />
+                            <textarea 
+                              value={desc}
+                              placeholder="角色描述"
+                              className="character-desc-textarea"
+                              rows={2}
+                              onChange={(e) => updateCharacterDesc(name, e.target.value)}
+                              onBlur={saveSettings}
+                            />
+                            <button 
+                              className="remove-item-btn"
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                console.log('点击删除按钮，角色名:', name)
+                                removeCharacter(name)
+                              }}
+                              title="删除角色"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="empty-state">暂无角色设定</div>
+                      )}
+                      <button className="add-item-btn" onClick={addCharacter}>+ 添加角色</button>
+                    </div>
+                  </div>
+
+                  {/* 环境设定 */}
+                  <div className="consistency-section">
+                    <h5>环境设定</h5>
+                    <div className="consistency-list">
+                      {Object.keys(localEnvironments).length > 0 ? (
+                        Object.entries(localEnvironments).map(([env, desc]) => (
+                          <div key={env} className="consistency-item editable">
+                            <input 
+                              type="text" 
+                              value={env}
+                              placeholder="环境名称"
+                              className="environment-name-input"
+                              onChange={(e) => updateEnvironmentName(env, e.target.value)}
+                              onBlur={saveSettings}
+                            />
+                            <textarea 
+                              value={desc}
+                              placeholder="环境描述"
+                              className="environment-desc-textarea"
+                              rows={2}
+                              onChange={(e) => updateEnvironmentDesc(env, e.target.value)}
+                              onBlur={saveSettings}
+                            />
+                            <button 
+                              className="remove-item-btn"
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                console.log('点击删除按钮，环境名:', env)
+                                removeEnvironment(env)
+                              }}
+                              title="删除环境"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="empty-state">暂无环境设定</div>
+                      )}
+                      <button className="add-item-btn" onClick={addEnvironment}>+ 添加环境</button>
+                    </div>
+                  </div>
+
+                  {/* 分镜详情 */}
+                  <div className="sections-list">
+                    <div className="sections-header">
+                      <h5>分镜详情</h5>
+                      <span>共 {selectedChapter.sections.length} 个分镜</span>
+                    </div>
+                    <ul>
+                      {selectedChapter.sections.map((s, index) => (
+                        <li key={s.id} className="section-item">
+                          <div className="section-header">
+                            <span className="section-number">{index + 1}</span>
+                            <input 
+                              defaultValue={s.title} 
+                              placeholder={`分镜 ${index + 1}`}
+                              className="section-title"
+                            />
+                          </div>
+                          <div className="section-content">
+                            {s.detail && (
+                              <div className="section-detail">
+                                <label>详细描述：</label>
+                                <textarea 
+                                  defaultValue={s.detail}
+                                  placeholder="分镜详细描述"
+                                  className="section-textarea"
+                                  rows={3}
+                                />
+                              </div>
+                            )}
+                            {s.dialogue && (
+                              <div className="section-dialogue">
+                                <label>对话内容：</label>
+                                <textarea 
+                                  defaultValue={s.dialogue}
+                                  placeholder="角色对话"
+                                  className="section-textarea"
+                                  rows={2}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <div className="no-sections">
+                  <p>暂无分镜数据</p>
+                  <p className="hint">请点击"识别分镜"按钮生成分镜设定</p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="empty">请选择章节以查看分镜数据</div>
@@ -465,17 +1103,133 @@ const CreatePage: React.FC = () => {
         <header>
           <h3>漫画生成输出区</h3>
           <div className="actions">
-            <button disabled>生成漫画</button>
-            <button disabled>导出</button>
+            <button 
+                onClick={generateComics}
+                disabled={!selectedChapter || comicGeneration.status === 'generating' || comicGeneration.status === 'connecting'}
+                className={comicGeneration.status === 'generating' || comicGeneration.status === 'connecting' ? 'loading' : ''}
+              >
+                {comicGeneration.status === 'connecting' && '连接中...'}
+                {comicGeneration.status === 'generating' && '生成中...'}
+                {(comicGeneration.status === 'idle' || comicGeneration.status === 'completed' || comicGeneration.status === 'error') && '生成漫画'}
+              </button>
+              {(comicGeneration.status === 'generating' || comicGeneration.status === 'connecting') && (
+                <button className="cancel-btn" onClick={cancelGeneration}>取消生成</button>
+              )}
+            <button disabled={comicGeneration.images.length === 0} onClick={exportComics}>导出</button>
           </div>
         </header>
         <div className="output-body">
-          <div className="pages">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="page-skeleton">第 {i} 页预览（占位）</div>
-            ))}
-          </div>
-          <p className="tip">后端完成后将展示生成的页面缩略图与进度。</p>
+          {/* 状态显示区域 */}
+          {comicGeneration.status === 'idle' && (
+            <div className="status-display">
+              <div className="status-icon">🎨</div>
+              <h4>准备生成漫画</h4>
+              <p>请确保已设置角色和环境，然后点击"生成漫画"按钮</p>
+              {selectedChapter && (
+                <div className="generation-info">
+                  <p><strong>当前章节：</strong>{selectedChapter.title}</p>
+                  <p><strong>角色设定：</strong>{Object.keys(localCharacters).length} 个</p>
+                  <p><strong>环境设定：</strong>{Object.keys(localEnvironments).length} 个</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {comicGeneration.status === 'connecting' && (
+            <div className="status-display">
+              <div className="status-icon loading">🔄</div>
+              <h4>连接服务器中...</h4>
+              <p>{comicGeneration.message || '正在建立连接'}</p>
+            </div>
+          )}
+
+          {comicGeneration.status === 'generating' && (
+            <div className="status-display">
+              <div className="status-icon loading">⚡</div>
+              <h4>正在生成漫画</h4>
+              <p>{comicGeneration.message}</p>
+              {comicGeneration.progress.total > 0 && (
+                <div className="progress-container">
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-fill" 
+                      style={{ width: `${comicGeneration.progress.percentage}%` }}
+                    ></div>
+                  </div>
+                  <div className="progress-text">
+                    {comicGeneration.progress.current} / {comicGeneration.progress.total} ({comicGeneration.progress.percentage}%)
+                  </div>
+                </div>
+              )}
+              {/* 显示已生成的图片 */}
+              {comicGeneration.images.length > 0 && (
+                <div className="preview-images">
+                  <h5>已生成的图片：</h5>
+                  <div className="image-grid">
+                    {comicGeneration.images.map((image) => (
+                      <div key={image.id} className="image-item">
+                        <img src={image.url} alt={`场景 ${image.sceneIndex + 1}`} />
+                        <div className="image-info">场景 {image.sceneIndex + 1}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {comicGeneration.status === 'completed' && (
+            <div className="status-display">
+              <div className="status-icon">✅</div>
+              <h4>漫画生成完成</h4>
+              <p>共生成 {comicGeneration.images.length} 张图片</p>
+              <div className="image-grid completed">
+                {comicGeneration.images.map((image) => (
+                  <div key={image.id} className="image-item">
+                    <img src={image.url} alt={`场景 ${image.sceneIndex + 1}`} />
+                    <div className="image-info">
+                      <div className="scene-number">场景 {image.sceneIndex + 1}</div>
+                      {image.description && <div className="scene-desc">{image.description}</div>}
+                    </div>
+                    <div className="image-actions">
+                      <button onClick={() => window.open(image.url, '_blank')}>查看大图</button>
+                      <button onClick={async () => {
+                        try {
+                          const response = await fetch(image.url)
+                          const blob = await response.blob()
+                          const url = window.URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `scene-${image.sceneIndex + 1}.jpg`
+                          document.body.appendChild(a)
+                          a.click()
+                          document.body.removeChild(a)
+                          window.URL.revokeObjectURL(url)
+                        } catch (error) {
+                          console.error('下载失败:', error)
+                          alert('下载失败，请重试')
+                        }
+                      }}>下载</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {comicGeneration.status === 'error' && (
+            <div className="status-display error">
+              <div className="status-icon">❌</div>
+              <h4>生成失败</h4>
+              <p className="error-message">{comicGeneration.error}</p>
+              <div className="error-actions">
+                <button onClick={retryGeneration} className="retry-btn">重试</button>
+                <button onClick={resetGeneration}>
+                  重置
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

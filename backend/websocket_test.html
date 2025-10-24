@@ -684,6 +684,185 @@
             font-weight: 600;
         }
 
+        /* 模态框样式 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 1200px;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.4s ease;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.3s ease;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .modal-body {
+            padding: 30px;
+            max-height: calc(90vh - 120px);
+            overflow-y: auto;
+        }
+
+        .modal-info {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e1e5e9;
+        }
+
+        .modal-info p {
+            margin: 8px 0;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .modal-info strong {
+            color: #333;
+        }
+
+        .modal-comics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-top: 20px;
+        }
+
+        .modal-comic-card {
+            border: 1px solid #e1e5e9;
+            border-radius: 15px;
+            overflow: hidden;
+            background: white;
+            transition: all 0.3s ease;
+        }
+
+        .modal-comic-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+            border-color: #667eea;
+        }
+
+        .modal-comic-image {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+        }
+
+        .modal-comic-info {
+            padding: 20px;
+        }
+
+        .modal-comic-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .modal-comic-description {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .modal-loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .modal-error {
+            text-align: center;
+            padding: 60px 20px;
+            color: #dc3545;
+            background: #f8d7da;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .modal-empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .modal-overlay {
+                padding: 10px;
+            }
+
+            .modal-content {
+                width: 95%;
+                max-height: 95vh;
+            }
+
+            .modal-body {
+                padding: 20px;
+                max-height: calc(95vh - 120px);
+            }
+
+            .modal-comics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .modal-comic-image {
+                height: 200px;
+            }
+        }
+
         /* 响应式设计 */
         @media (max-width: 768px) {
             .container {
@@ -860,6 +1039,48 @@
             <div class="log">
                 <h3>系统日志</h3>
                 <div id="logOutput" class="log-output"></div>
+            </div>
+        </div>
+    </div>
+
+        <!-- 历史记录详情模态框 -->
+    <div id="historyModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">漫画详情</h2>
+                <button class="modal-close" onclick="closeHistoryModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="modalLoading" class="modal-loading">
+                    <div style="font-size: 16px; margin-bottom: 10px;">加载中...</div>
+                    <div style="color: #999; font-size: 14px;">正在获取漫画详情</div>
+                </div>
+
+                <div id="modalContent" class="hidden">
+                    <div class="modal-info">
+                        <p><strong>处理ID:</strong> <span id="modalProcessId"></span></p>
+                        <p><strong>标题:</strong> <span id="modalComicTitle"></span></p>
+                        <p><strong>描述:</strong> <span id="modalComicDescription"></span></p>
+                        <p><strong>创建时间:</strong> <span id="modalCreatedAt"></span></p>
+                        <p><strong>场景数量:</strong> <span id="modalScenesCount"></span></p>
+                    </div>
+
+                    <div id="modalImagesContent">
+                        <h3 style="margin-bottom: 20px; color: #333;">连环画场景</h3>
+                        <div id="modalComicsGrid" class="modal-comics-grid"></div>
+                    </div>
+                </div>
+
+                <div id="modalError" class="modal-error hidden">
+                    <div style="font-size: 16px; margin-bottom: 10px;">加载失败</div>
+                    <div style="font-size: 14px;" id="modalErrorMessage"></div>
+                    <button class="primary-btn" onclick="closeHistoryModal()" style="margin-top: 15px;">关闭</button>
+                </div>
+
+                <div id="modalEmpty" class="modal-empty hidden">
+                    <div style="font-size: 16px; margin-bottom: 10px;">没有找到漫画详情</div>
+                    <button class="primary-btn" onclick="closeHistoryModal()" style="margin-top: 15px;">关闭</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1284,11 +1505,182 @@
         }
 
         // 查看历史记录详情
-        function viewHistoryDetail(processId) {
-            // 这里可以实现查看详细历史记录的功能
-            alert('查看历史记录详情: ' + processId);
-            // 在实际实现中，可以打开一个模态框显示完整的漫画
+        async function viewHistoryDetail(processId) {
+            console.log('查看历史记录详情:', processId);
+            openHistoryModal();
+
+            try {
+                showModalLoading();
+
+                const baseUrl = getBaseUrl();
+                const response = await fetch(`${baseUrl}/api/history/${processId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + sessionToken
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    displayHistoryDetail(data.history);
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || '加载失败');
+                }
+            } catch (error) {
+                console.error('加载历史记录详情失败:', error);
+                showModalError('加载失败: ' + error.message);
+                log('加载历史记录详情失败: ' + error.message, 'error');
+            }
         }
+
+        // 打开历史记录模态框
+        function openHistoryModal() {
+            document.getElementById('historyModal').classList.remove('hidden');
+            // 禁用背景滚动
+            document.body.style.overflow = 'hidden';
+        }
+
+        // 关闭历史记录模态框
+        function closeHistoryModal() {
+            document.getElementById('historyModal').classList.add('hidden');
+            // 恢复背景滚动
+            document.body.style.overflow = '';
+            // 重置模态框内容
+            resetModal();
+        }
+
+        // 显示模态框加载状态
+        function showModalLoading() {
+            document.getElementById('modalLoading').classList.remove('hidden');
+            document.getElementById('modalContent').classList.add('hidden');
+            document.getElementById('modalError').classList.add('hidden');
+            document.getElementById('modalEmpty').classList.add('hidden');
+        }
+
+        // 显示模态框错误状态
+        function showModalError(message) {
+            document.getElementById('modalLoading').classList.add('hidden');
+            document.getElementById('modalContent').classList.add('hidden');
+            document.getElementById('modalError').classList.remove('hidden');
+            document.getElementById('modalErrorMessage').textContent = message;
+        }
+
+        // 显示模态框内容
+        function showModalContent() {
+            document.getElementById('modalLoading').classList.add('hidden');
+            document.getElementById('modalContent').classList.remove('hidden');
+            document.getElementById('modalError').classList.add('hidden');
+            document.getElementById('modalEmpty').classList.add('hidden');
+        }
+
+        // 显示模态框空状态
+        function showModalEmpty() {
+            document.getElementById('modalLoading').classList.add('hidden');
+            document.getElementById('modalContent').classList.add('hidden');
+            document.getElementById('modalError').classList.add('hidden');
+            document.getElementById('modalEmpty').classList.remove('hidden');
+        }
+
+        // 重置模态框
+        function resetModal() {
+            document.getElementById('modalProcessId').textContent = '';
+            document.getElementById('modalComicTitle').textContent = '';
+            document.getElementById('modalComicDescription').textContent = '';
+            document.getElementById('modalCreatedAt').textContent = '';
+            document.getElementById('modalScenesCount').textContent = '';
+            document.getElementById('modalComicsGrid').innerHTML = '';
+        }
+
+        // 显示历史记录详情
+        function displayHistoryDetail(history) {
+            if (!history) {
+                showModalEmpty();
+                return;
+            }
+
+            // 更新基本信息
+            document.getElementById('modalProcessId').textContent = history.process_id;
+            document.getElementById('modalComicTitle').textContent = history.title || '未命名漫画';
+            document.getElementById('modalComicDescription').textContent = history.description || '无描述';
+            document.getElementById('modalCreatedAt').textContent = new Date(history.created_at).toLocaleString();
+            document.getElementById('modalScenesCount').textContent = history.comic_results ? history.comic_results.length : 0;
+
+            // 更新标题
+            document.getElementById('modalTitle').textContent = history.title || '漫画详情';
+
+            // 显示图片内容
+            const comicsGrid = document.getElementById('modalComicsGrid');
+            comicsGrid.innerHTML = '';
+
+            if (history.comic_results && history.comic_results.length > 0) {
+                history.comic_results.forEach((scene, index) => {
+                    const sceneCard = document.createElement('div');
+                    sceneCard.className = 'modal-comic-card';
+
+                    sceneCard.innerHTML = `
+                        <div class="modal-comic-image">
+                            <img src="${scene.url}"
+                                 alt="场景 ${scene.scene_index}"
+                                 style="width: 100%; height: 100%; object-fit: cover;"
+                                 onerror="this.src='https://via.placeholder.com/300x200?text=图片加载失败'">
+                        </div>
+                        <div class="modal-comic-info">
+                            <div class="modal-comic-title">场景 ${scene.scene_index}</div>
+                            <div class="modal-comic-description">
+                                ${getSceneDescription(history.llm_result, scene.scene_index)}
+                            </div>
+                        </div>
+                    `;
+
+                    comicsGrid.appendChild(sceneCard);
+                });
+            } else {
+                comicsGrid.innerHTML = `
+                    <div class="modal-empty" style="grid-column: 1 / -1;">
+                        <div style="font-size: 16px; margin-bottom: 10px;">没有生成图片</div>
+                        <div style="color: #999; font-size: 14px;">该记录没有生成连环画图片</div>
+                    </div>
+                `;
+            }
+
+            showModalContent();
+        }
+
+        // 获取场景描述
+        function getSceneDescription(llmResult, sceneIndex) {
+            if (!llmResult || !llmResult.scenes_detail) {
+                return '暂无描述';
+            }
+
+            const scenes = llmResult.scenes_detail;
+            const index = parseInt(sceneIndex) - 1;
+
+            if (index >= 0 && index < scenes.length) {
+                const description = scenes[index];
+                // 限制描述长度，避免显示过长
+                return description.length > 150 ? description.substring(0, 150) + '...' : description;
+            }
+
+            return '暂无描述';
+        }
+
+        // 添加ESC键关闭模态框的支持
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                const modal = document.getElementById('historyModal');
+                if (!modal.classList.contains('hidden')) {
+                    closeHistoryModal();
+                }
+            }
+        });
+
+        // 点击模态框背景关闭
+        document.getElementById('historyModal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                closeHistoryModal();
+            }
+        });
 
         // WebSocket连接函数
         function connect() {

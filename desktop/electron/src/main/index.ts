@@ -71,8 +71,121 @@ app.whenReady().then(() => {
   ipcMain.handle(
     'backend:invoke',
     async (_e, { route, payload }: { route: string; payload: unknown }) => {
-      // TODO: replace with real backend call
-      return { route, ok: true, payload }
+      try {
+        // 后端服务器地址
+        const BACKEND_URL = 'http://139.224.101.91:5000'
+        
+        // 根据路由映射到具体的API端点
+        let apiEndpoint = ''
+        let requestData = payload
+        
+        if (route === 'storyboard/recognize') {
+          // 识别分镜：调用处理小说文本的API
+          apiEndpoint = '/api/process-novel'
+          requestData = {
+            novel_text: (payload as any)?.text || ''
+          }
+        } else {
+          // 其他路由的占位处理
+          return { route, ok: false, error: 'Unknown route' }
+        }
+        
+        // 发送HTTP请求到后端
+        const response = await fetch(`${BACKEND_URL}${apiEndpoint}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestData)
+        })
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+        
+        const result = await response.json()
+        
+        // 处理返回结果，转换为前端期望的格式
+        if (route === 'storyboard/recognize') {
+          console.log('=== 主进程处理 storyboard/recognize ===')
+          console.log('后端原始响应:', JSON.stringify(result, null, 2))
+          
+          // 从后端LLM结果中提取分镜信息
+          const llmResult = result.llm_result
+          console.log('LLM结果:', JSON.stringify(llmResult, null, 2))
+          
+          let sections = []
+          // 在外层作用域定义scenesDetail变量
+          let scenesDetail = []
+          
+          if (llmResult) {
+            // 获取各种数据数组
+            const scenes = llmResult.scenes || []
+            scenesDetail = llmResult.scenes_detail || []
+            const dialogue = llmResult.dialogue || []
+            
+            console.log('scenes:', scenes)
+            console.log('scenes_detail:', scenesDetail)
+            console.log('dialogue:', dialogue)
+            
+            // 确定分镜数量（以最长的数组为准）
+            const maxLength = Math.max(scenes.length, scenesDetail.length, dialogue.length)
+            console.log('分镜数量:', maxLength)
+            
+            // 组合完整的分镜信息
+            for (let i = 0; i < maxLength; i++) {
+              const sceneTitle = scenes[i] || `场景 ${i + 1}`
+              const sceneDetail = scenesDetail[i] || ''
+              const sceneDialogue = dialogue[i] || ''
+              
+              // 清理详细描述（去除"图片X："前缀）
+              const cleanDetail = sceneDetail.replace(/^图片\d+：/, '').trim()
+              
+              // 清理对话（去除"对白X："前缀）
+              const cleanDialogue = sceneDialogue.replace(/^对白\d+：/, '').trim()
+              
+              const section = {
+                id: `scene-${i + 1}`,
+                title: sceneTitle.trim(),
+                detail: cleanDetail,
+                dialogue: cleanDialogue,
+                // 为了向后兼容，保留原有的description字段
+                description: cleanDetail
+              }
+              
+              console.log(`分镜 ${i + 1}:`, section)
+              sections.push(section)
+            }
+          }
+          
+          console.log('最终生成的sections:', sections)
+          
+          const finalResult = {
+            ok: true,
+            sections: sections,
+            process_id: result.process_id,
+            scenes_count: sections.length,
+            character_consistency: llmResult?.character_consistency || {},
+            environment_consistency: llmResult?.environment_consistency || {},
+            scenes_detail: scenesDetail,
+            raw_result: result
+          }
+          
+          console.log('返回给前端的最终结果:', JSON.stringify(finalResult, null, 2))
+          
+          return finalResult
+        }
+        
+        return { ok: true, result }
+        
+      } catch (error) {
+        console.error('Backend API call failed:', error)
+        return { 
+          ok: false, 
+          error: error instanceof Error ? error.message : 'Unknown error',
+          route 
+        }
+      }
     }
   )
 

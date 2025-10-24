@@ -1,0 +1,47 @@
+{
+  "total_scenes": 6,
+  "character_consistency": {
+    "小明": "12岁左右的少年，男，留着利落的短发，穿着蓝色短袖、黑色短裤和白色运动鞋，脸上带着善良勇敢的神情"
+  },
+  "environment_consistency": {
+    "森林": "一片宁静的森林，树木郁郁葱葱，阳光透过树叶缝隙洒下，形成一片片光斑，地面铺满落叶，空气清新，弥漫着泥土和花草的香气"
+  },
+  "results": [
+    {
+      "scene_index": 1,
+      "url": "https://ark-content-generation-v2-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-4-0/021761228378009166a8422b4e1bc39b3ed88f94bfe9df5d1a8e9_0.jpeg?X-Tos-Algorithm=TOS4-HMAC-SHA256&X-Tos-Credential=AKLTYWJkZTExNjA1ZDUyNDc3YzhjNTM5OGIyNjBhNDcyOTQ%2F20251023%2Fcn-beijing%2Ftos%2Frequest&X-Tos-Date=20251023T140641Z&X-Tos-Expires=86400&X-Tos-Signature=9ba704fb0b3b3494db351b078c6c3976d82251a7b8f9f08361680b439a6d0ebd&X-Tos-SignedHeaders=host",
+      "size": "864x1152",
+      "prompt": "角色设定: 小明: 12岁左右的少年，男，留着利落的短发，穿着蓝色短袖、黑色短裤和白色运动鞋，脸上带着善良勇敢的神情. 环境设定: 森林: 一片宁静的森林，树木郁郁葱葱，阳光透过树叶缝隙洒下，形成一片片光斑，地面铺满落叶，空气清新，弥漫着泥土和花草的香气. 漫画风格连环画,注意每幅画面间的连贯性。图片1：远景，阳光明媚的森林中，小明（12岁左右留着利落短发穿蓝色短袖黑色短裤）背着小背包，迈着轻快的步伐穿梭在树林间，脸上洋溢着兴奋。"
+    },
+    {
+      "scene_index": 2,
+      "url": "https://ark-content-generation-v2-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-4-0/021761228402090166a8422b4e1bc39b3ed88f94bfe9df52a0427_0.jpeg?X-Tos-Algorithm=TOS4-HMAC-SHA256&X-Tos-Credential=AKLTYWJkZTExNjA1ZDUyNDc3YzhjNTM5OGIyNjBhNDcyOTQ%2F20251023%2Fcn-beijing%2Ftos%2Frequest&X-Tos-Date=20251023T140647Z&X-Tos-Expires=86400&X-Tos-Signature=c7b3c999cd5d54a0c8b216bc7530d7a7345b53246475aca221293e934c10eb79&X-Tos-SignedHeaders=host",
+      "size": "864x1152",
+      "prompt": "角色设定: 小明: 12岁左右的少年，男，留着利落的短发，穿着蓝色短袖、黑色短裤和白色运动鞋，脸上带着善良勇敢的神情. 环境设定: 森林: 一片宁静的森林，树木郁郁葱葱，阳光透过树叶缝隙洒下，形成一片片光斑，地面铺满落叶，空气清新，弥漫着泥土和花草的香气. 漫画风格连环画,注意每幅画面间的连贯性。图片2：中景，在森林的一片空地上，一只小鹿（毛色棕黄）躺在地上，腿部流血，眼神惊恐无助。小明（同前）停下脚步，一脸惊讶地看着小鹿。"
+    },
+    {
+      "scene_index": 3,
+      "url": "https://ark-content-generation-v2-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-4-0/021761228408500166a8422b4e1bc39b3ed88f94bfe9df59599a9_0.jpeg?X-Tos-Algorithm=TOS4-HMAC-SHA256&X-Tos-Credential=AKLTYWJkZTExNjA1ZDUyNDc3YzhjNTM5OGIyNjBhNDcyOTQ%2F20251023%2Fcn-beijing%2Ftos%2Frequest&X-Tos-Date=20251023T140709Z&X-Tos-Expires=86400&X-Tos-Signature=ddb79ab50faac8e3ce152f38a5929c578053301e75f1c24a2932a0262ac00b33&X-Tos-SignedHeaders=host",
+      "size": "864x1152",
+      "prompt": "角色设定: 小明: 12岁左右的少年，男，留着利落的短发，穿着蓝色短袖、黑色短裤和白色运动鞋，脸上带着善良勇敢的神情. 环境设定: 森林: 一片宁静的森林，树木郁郁葱葱，阳光透过树叶缝隙洒下，形成一片片光斑，地面铺满落叶，空气清新，弥漫着泥土和花草的香气. 漫画风格连环画,注意每幅画面间的连贯性。图片3：近景，小明（同前）双手摊开，慢慢蹲下，小心翼翼地靠近小鹿，眼神充满关切，小鹿紧张地看着他。"
+    },
+    {
+      "scene_index": 4,
+      "url": "https://ark-content-generation-v2-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-4-0/021761228430544166a8422b4e1bc39b3ed88f94bfe9df5fd3465_0.jpeg?X-Tos-Algorithm=TOS4-HMAC-SHA256&X-Tos-Credential=AKLTYWJkZTExNjA1ZDUyNDc3YzhjNTM5OGIyNjBhNDcyOTQ%2F20251023%2Fcn-beijing%2Ftos%2Frequest&X-Tos-Date=20251023T140725Z&X-Tos-Expires=86400&X-Tos-Signature=8e7fa7bc5a058fad34827c24c93c311ce081877233d31300af672fdc86422d59&X-Tos-SignedHeaders=host",
+      "size": "864x1152",
+      "prompt": "角色设定: 小明: 12岁左右的少年，男，留着利落的短发，穿着蓝色短袖、黑色短裤和白色运动鞋，脸上带着善良勇敢的神情. 环境设定: 森林: 一片宁静的森林，树木郁郁葱葱，阳光透过树叶缝隙洒下，形成一片片光斑，地面铺满落叶，空气清新，弥漫着泥土和花草的香气. 漫画风格连环画,注意每幅画面间的连贯性。图片4：特写，小明（同前）从口袋里掏出白色手帕，轻轻地为小鹿（同前）包扎伤口，动作轻柔。"
+    },
+    {
+      "scene_index": 5,
+      "url": "https://ark-content-generation-v2-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-4-0/021761228446832166a8422b4e1bc39b3ed88f94bfe9df537146d_0.jpeg?X-Tos-Algorithm=TOS4-HMAC-SHA256&X-Tos-Credential=AKLTYWJkZTExNjA1ZDUyNDc3YzhjNTM5OGIyNjBhNDcyOTQ%2F20251023%2Fcn-beijing%2Ftos%2Frequest&X-Tos-Date=20251023T140739Z&X-Tos-Expires=86400&X-Tos-Signature=2abd690185db0b0cacc9dca54f5c066685d37d269f33450ce017421b48b4291f&X-Tos-SignedHeaders=host",
+      "size": "864x1152",
+      "prompt": "角色设定: 小明: 12岁左右的少年，男，留着利落的短发，穿着蓝色短袖、黑色短裤和白色运动鞋，脸上带着善良勇敢的神情. 环境设定: 森林: 一片宁静的森林，树木郁郁葱葱，阳光透过树叶缝隙洒下，形成一片片光斑，地面铺满落叶，空气清新，弥漫着泥土和花草的香气. 漫画风格连环画,注意每幅画面间的连贯性。图片5：中景，小明（同前）牵着小鹿（同前）的脖子，在森林里四处寻找，眼神坚定，小鹿温顺地跟着。"
+    },
+    {
+      "scene_index": 6,
+      "url": "https://ark-content-generation-v2-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-4-0/021761228460700166a8422b4e1bc39b3ed88f94bfe9df58988be_0.jpeg?X-Tos-Algorithm=TOS4-HMAC-SHA256&X-Tos-Credential=AKLTYWJkZTExNjA1ZDUyNDc3YzhjNTM5OGIyNjBhNDcyOTQ%2F20251023%2Fcn-beijing%2Ftos%2Frequest&X-Tos-Date=20251023T140758Z&X-Tos-Expires=86400&X-Tos-Signature=2478878e57ee3e25bd7fc6f9927ece104389ea75862d922b0fddefeb3d491399&X-Tos-SignedHeaders=host",
+      "size": "864x1152",
+      "prompt": "角色设定: 小明: 12岁左右的少年，男，留着利落的短发，穿着蓝色短袖、黑色短裤和白色运动鞋，脸上带着善良勇敢的神情. 环境设定: 森林: 一片宁静的森林，树木郁郁葱葱，阳光透过树叶缝隙洒下，形成一片片光斑，地面铺满落叶，空气清新，弥漫着泥土和花草的香气. 漫画风格连环画,注意每幅画面间的连贯性。图片6：远景，一只大鹿（毛色棕黄）跑过来，和小鹿亲昵地蹭着。小明（同前）站在一旁微笑，大鹿和小鹿感激地看着他。"
+    }
+  ]
+}
