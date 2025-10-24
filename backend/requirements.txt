@@ -21,6 +21,3 @@ volcengine-python-sdk[ark]
 # 生产环境WSGI服务器（可选）
 # gunicorn==20.1.0
 # gevent==22.10.2
-
-# 使用以下命令安装依赖：
-pip install -r requirements.txt
