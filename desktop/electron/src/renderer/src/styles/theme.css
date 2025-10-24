@@ -588,7 +588,110 @@ body {
   .novel-settings .character-item { grid-template-columns: 56px 1fr; grid-template-areas: 'preview meta' 'preview actions'; }
 }
 
+<<<<<<< HEAD
 /* 漫画生成相关样式 */
+=======
+/* 增强的进度显示样式 */
+.progress-container.enhanced {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 15px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.progress-info {
+  margin-bottom: 15px;
+}
+
+.progress-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.progress-stats span {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.current-step {
+  color: #007bff;
+}
+
+.total-steps {
+  color: #6c757d;
+}
+
+.percentage {
+  color: #28a745;
+  font-weight: 600;
+}
+
+.progress-bar.enhanced {
+  height: 12px;
+  background: #e9ecef;
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 15px;
+}
+
+.progress-fill.animated {
+  height: 100%;
+  background: linear-gradient(90deg, #007bff 0%, #0056b3 50%, #007bff 100%);
+  background-size: 200% 100%;
+  animation: progressShimmer 2s ease-in-out infinite;
+  transition: width 0.3s ease;
+  border-radius: 6px;
+}
+
+@keyframes progressShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.progress-details {
+  border-top: 1px solid #dee2e6;
+  padding-top: 15px;
+}
+
+.time-estimate {
+  margin-bottom: 10px;
+}
+
+.time-estimate span {
+  color: #495057;
+  font-size: 14px;
+}
+
+.generation-tips {
+  background: #f8f9fa;
+  border-left: 4px solid #007bff;
+  padding: 10px 15px;
+  border-radius: 4px;
+}
+
+.generation-tips p {
+  margin: 5px 0;
+  font-size: 13px;
+  color: #495057;
+  line-height: 1.4;
+}
+
+.generation-tips p:first-child {
+  margin-top: 0;
+}
+
+.generation-tips p:last-child {
+  margin-bottom: 0;
+}
+>>>>>>> 61fac845b79edacab33f62b90c5b7868d4e03ab4
 .comic-generation {
   margin-top: 20px;
   padding: 20px;
