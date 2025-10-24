@@ -120,9 +120,7 @@ const AddNovelDialog: React.FC<{ onClose(): void; onSubmit(n: Novel): void; sess
     const reader = new FileReader()
     reader.onload = async () => {
       const content = String(reader.result || '')
-      try {
-        await window.api.invokeBackend('novel/parse', { text: content }, sessionToken)
-      } catch {}
+      // 移除：导入阶段不触发后端文本解析，避免自动填充分镜
       const chapters = splitChaptersFromText(content)
       const novel: Novel = { id: 'novel-' + Date.now(), title: file.name.replace(/\.txt$/i, ''), chapters }
       onSubmit(novel)
@@ -132,9 +130,7 @@ const AddNovelDialog: React.FC<{ onClose(): void; onSubmit(n: Novel): void; sess
   }
 
   const submitText = async () => {
-    try {
-      await window.api.invokeBackend('novel/parse', { text }, sessionToken)
-    } catch {}
+    // 移除：文本提交阶段不触发后端文本解析，避免自动填充分镜
     const chapters = splitChaptersFromText(text)
     const novel: Novel = { id: 'novel-' + Date.now(), title: '新小说（单章节）', chapters }
     onSubmit(novel)
@@ -303,6 +299,13 @@ const CreatePage: React.FC = () => {
   const selectedChapterIdRef = useRef<string | null>(null)
   useEffect(() => { selectedNovelIdRef.current = selectedNovelId }, [selectedNovelId])
   useEffect(() => { selectedChapterIdRef.current = selectedChapterId }, [selectedChapterId])
+  // 切换章节时重置识别状态并清理绑定引用，避免后台事件导致误填充或误显示
+  useEffect(() => {
+    setRecognizeRequested(false)
+    setRecognizing(false)
+    requestedNovelIdRef.current = null
+    requestedChapterIdRef.current = null
+  }, [selectedChapterId])
   const selectedNovel = useMemo(() => novels.find((n) => n.id === selectedNovelId) || null, [novels, selectedNovelId])
   const selectedChapter = useMemo(() => selectedNovel?.chapters.find((c) => c.id === selectedChapterId) || null, [selectedNovel, selectedChapterId])
   const [showAdd, setShowAdd] = useState(false)
@@ -314,7 +317,11 @@ const CreatePage: React.FC = () => {
   const browseNovel = useMemo(() => novels.find(n => n.id === browseNovelId) || null, [novels, browseNovelId])
   const [recognizing, setRecognizing] = useState(false)
   const [settingsForId, setSettingsForId] = useState<string | null>(null)
-
+  const [recognizeRequested, setRecognizeRequested] = useState(false)
+  const recognizeRequestedRef = useRef(false)
+  useEffect(() => { recognizeRequestedRef.current = recognizeRequested }, [recognizeRequested])
+  const requestedNovelIdRef = useRef<string | null>(null)
+  const requestedChapterIdRef = useRef<string | null>(null)
   // 角色设定和环境设定的本地状态管理
   const [localCharacters, setLocalCharacters] = useState<Record<string, string>>({})
   const [localEnvironments, setLocalEnvironments] = useState<Record<string, string>>({})
@@ -525,7 +532,19 @@ const CreatePage: React.FC = () => {
       }))
     })
 
-    // 新增：监听完整流程完成事件
+    // 新增：监听完整流程状态（用于在文本阶段显示处理中）
+    socket.on('full_process_status', (data) => {
+      const step = Number(data.step || 0)
+      console.log('完整流程状态事件', { step, data, recognizeRequested: recognizeRequestedRef.current, requestedNovelId: requestedNovelIdRef.current, requestedChapterId: requestedChapterIdRef.current })
+      if (!recognizeRequestedRef.current) {
+        console.warn('忽略完整流程状态（未点击生成分镜）')
+        return
+      }
+      if (step >= 1 && step <= 3) {
+        setRecognizing(true)
+      }
+    })
+
     socket.on('full_process_complete', (data) => {
       console.log('收到full_process_complete事件:', data)
       const images = (data.comic_results || []).map((item: any, idx: number) => ({
@@ -559,20 +578,35 @@ const CreatePage: React.FC = () => {
 
     // 新增：监听文本处理阶段事件（WebSocket识别分镜）
     socket.on('process_status', (data) => {
-      console.log('文本处理状态:', data)
+      console.log('文本处理状态事件', { data, recognizeRequested: recognizeRequestedRef.current, requestedNovelId: requestedNovelIdRef.current, requestedChapterId: requestedChapterIdRef.current })
+      if (!recognizeRequestedRef.current) {
+        console.warn('忽略后台文本处理状态（未点击生成分镜）')
+        return
+      }
       setRecognizing(true)
     })
 
     socket.on('process_error', (data) => {
       console.error('文本处理错误:', data)
+      if (!recognizeRequestedRef.current) {
+        console.warn('忽略后台文本处理错误（未点击生成分镜）')
+        return
+      }
       setRecognizing(false)
+      setRecognizeRequested(false)
+      // 清理本次识别绑定的目标
+      requestedNovelIdRef.current = null
+      requestedChapterIdRef.current = null
       alert(data.error || '文本处理失败，请稍后重试')
     })
 
     socket.on('text_processing_complete', (data) => {
       console.log('收到text_processing_complete事件:', data)
       setRecognizing(false)
-
+      if (!recognizeRequestedRef.current) {
+        console.warn('忽略后台文本处理结果（未点击识别/生成分镜）')
+        return
+      }
       const sectionsDetail = Array.isArray((data as any).scenes_detail)
         ? (data as any).scenes_detail.map((desc: any, idx: number) => ({
             id: `s-${idx + 1}`,
@@ -591,12 +625,16 @@ const CreatePage: React.FC = () => {
       
       const sections = sectionsDetail || sectionsPreview
       
-      const novelId = selectedNovelIdRef.current
-      const chapterId = selectedChapterIdRef.current
+      // 仅当存在明确绑定的识别目标（由“生成分镜”设置）时才更新
+      const novelId = requestedNovelIdRef.current
+      const chapterId = requestedChapterIdRef.current
       if (!novelId || !chapterId) {
-        console.warn('未选择小说或章节，忽略文本处理结果更新')
+        console.warn('未绑定识别目标，忽略文本处理结果更新（需用户点击“生成分镜”）')
+        setRecognizeRequested(false)
+        setRecognizing(false)
         return
       }
+      console.log('将文本处理结果应用到绑定章节', { novelId, chapterId, sectionsCount: (sections || []).length })
       
       setNovels(prev => prev.map(n => n.id === novelId ? ({
         ...n,
@@ -609,27 +647,36 @@ const CreatePage: React.FC = () => {
           environmentConsistency: data.environment_consistency || {}
         }) : ch)
       }) : n))
+      setRecognizeRequested(false)
+      // 清理本次识别绑定的目标
+      requestedNovelIdRef.current = null
+      requestedChapterIdRef.current = null
     })
 
     // 新增：监听完整流程文本处理完成事件（full_process_text_complete）
     socket.on('full_process_text_complete', (data) => {
       console.log('收到full_process_text_complete事件:', data)
       setRecognizing(false)
-
+      if (!recognizeRequestedRef.current) {
+        console.warn('忽略后台完整流程文本结果（未点击识别/生成分镜）')
+        return
+      }
       const sections = (data.scenes_detail || []).map((desc: any, idx: number) => ({
         id: `s-${idx + 1}`,
         title: typeof desc === 'string' ? (desc.slice(0, 24) || `镜头 ${idx + 1}`) : `镜头 ${idx + 1}`,
         detail: typeof desc === 'string' ? desc : JSON.stringify(desc),
         description: typeof desc === 'string' ? desc : JSON.stringify(desc)
       }))
-
-      const novelId = selectedNovelIdRef.current
-      const chapterId = selectedChapterIdRef.current
+      // 仅当存在明确绑定的识别目标（由“生成分镜”设置）时才更新
+      const novelId = requestedNovelIdRef.current
+      const chapterId = requestedChapterIdRef.current
       if (!novelId || !chapterId) {
-        console.warn('未选择小说或章节，忽略完整流程文本结果更新')
+        console.warn('未绑定识别目标，忽略完整流程文本结果更新（需用户点击“生成分镜”）')
+        setRecognizeRequested(false)
+        setRecognizing(false)
         return
       }
-
+      console.log('将完整流程文本结果应用到绑定章节', { novelId, chapterId, sectionsCount: (data.scenes_detail || []).length })
       setNovels(prev => prev.map(n => n.id === novelId ? ({
         ...n,
         chapters: n.chapters.map(ch => ch.id === chapterId ? ({
@@ -641,15 +688,10 @@ const CreatePage: React.FC = () => {
           environmentConsistency: data.environment_consistency || {}
         }) : ch)
       }) : n))
-    })
-
-    // 新增：监听完整流程状态（用于在文本阶段显示处理中）
-    socket.on('full_process_status', (data) => {
-      // 在完整流程的前几步（文本处理阶段）显示识别中状态
-      const step = Number(data.step || 0)
-      if (step >= 1 && step <= 3) {
-        setRecognizing(true)
-      }
+      setRecognizeRequested(false)
+      // 清理本次识别绑定的目标
+      requestedNovelIdRef.current = null
+      requestedChapterIdRef.current = null
     })
 
     // 监听错误事件
@@ -871,6 +913,13 @@ const CreatePage: React.FC = () => {
     (async () => {
       try {
         const list = await window.api.listNovels()
+        // 诊断：确认每章sections是否为空，避免加载时自动填充
+        try {
+          console.log('listNovels 加载结果（章节分镜计数）:', (list || []).map((n: any) => ({
+            id: n?.id, title: n?.title,
+            chapters: (n?.chapters || []).map((ch: any) => ({ id: ch?.id, title: ch?.title, sectionsCount: (ch?.sections || []).length }))
+          })))
+        } catch {}
         setNovels(list as unknown as Novel[])
         // 初次进入不自动选择小说与章节，保持为空等待手动选择
       } catch {}
@@ -882,18 +931,25 @@ const CreatePage: React.FC = () => {
     const text = selectedChapter.content || ''
     if (!text) return
     
+    // 绑定本次识别的目标小说与章节
+    requestedNovelIdRef.current = selectedNovelId
+    requestedChapterIdRef.current = selectedChapterId
+    console.log('识别绑定目标', { novelId: requestedNovelIdRef.current, chapterId: requestedChapterIdRef.current })
+
+    setRecognizeRequested(true)
     setRecognizing(true)
     try {
       console.log('开始识别分镜，通过WebSocket发送文本到后端...')
       console.log('发送的文本内容:', text.substring(0, 100) + '...')
-
+      
       if (!socketRef.current || !socketRef.current.connected) {
         console.warn('WebSocket未连接，无法识别分镜')
         alert('WebSocket连接未建立或已断开，请刷新页面重试')
         setRecognizing(false)
+        setRecognizeRequested(false)
         return
       }
-
+      
       // 通过WebSocket触发文本处理
       socketRef.current.emit('process_novel', { 
         novel_text: text 
@@ -901,6 +957,44 @@ const CreatePage: React.FC = () => {
     } catch (e) {
       console.error('识别分镜时发生错误:', e)
       setRecognizing(false)
+      setRecognizeRequested(false)
+    }
+  }
+
+  // 新增：完整流程触发（返回完整 scenes_detail）
+  async function fullProcessStoryboard() {
+    if (!selectedChapter || !selectedNovelId) return
+    const text = selectedChapter.content || ''
+    if (!text) return
+
+    // 绑定本次识别的目标小说与章节（完整流程）
+    requestedNovelIdRef.current = selectedNovelId
+    requestedChapterIdRef.current = selectedChapterId
+    console.log('完整流程绑定目标', { novelId: requestedNovelIdRef.current, chapterId: requestedChapterIdRef.current })
+
+    setRecognizeRequested(true)
+    setRecognizing(true)
+    try {
+      console.log('开始完整流程，通过WebSocket发送文本到后端...')
+      console.log('发送的文本内容:', text.substring(0, 100) + '...')
+
+      if (!socketRef.current || !socketRef.current.connected) {
+        console.warn('WebSocket未连接，无法启动完整流程')
+        alert('WebSocket连接未建立或已断开，请刷新页面重试')
+        setRecognizing(false)
+        setRecognizeRequested(false)
+        return
+      }
+
+      socketRef.current.emit('full_process', {
+        novel_text: text,
+        title: browseNovel?.title || selectedChapter.title || '',
+        description: ''
+      })
+    } catch (e) {
+      console.error('完整流程启动失败:', e)
+      setRecognizing(false)
+      setRecognizeRequested(false)
     }
   }
 
@@ -1022,19 +1116,9 @@ const CreatePage: React.FC = () => {
             <div className="empty">请选择章节以查看正文</div>
           )}
           <div className="actions">
-            <button className="primary" disabled={!selectedChapter?.content || recognizing} onClick={recognizeStoryboard}>
-              {recognizing ? (
-                <span className="loading-text">
-                  <span className="spinner">⏳</span>
-                  正在识别分镜...
-                </span>
-              ) : '识别分镜'}
+            <button className="primary" disabled={!selectedChapter?.content || recognizing} onClick={fullProcessStoryboard}>
+              生成分镜
             </button>
-            {recognizing && (
-              <div className="loading-tip">
-                正在将章节内容发送到后端进行AI分析，请稍候...
-              </div>
-            )}
           </div>
         </div>
       </section>
@@ -1052,7 +1136,7 @@ const CreatePage: React.FC = () => {
                 <div className="processing-status">
                   <div className="status-indicator">
                     <span className="spinner">🔄</span>
-                    <span>正在处理章节内容...</span>
+                    <span>正在生成分镜...</span>
                   </div>
                   <div className="status-details">
                     后端AI正在分析文本并生成分镜数据，请稍候
@@ -1209,7 +1293,7 @@ const CreatePage: React.FC = () => {
               ) : (
                 <div className="no-sections">
                   <p>暂无分镜数据</p>
-                  <p className="hint">请点击"识别分镜"按钮生成分镜设定</p>
+                  <p className="hint">请点击"生成分镜"按钮生成分镜设定</p>
                 </div>
               )}
             </div>

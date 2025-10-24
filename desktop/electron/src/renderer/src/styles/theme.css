@@ -457,6 +457,17 @@ body {
   border-radius: 50%;
   width: 24px;
   height: 24px;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-scene-btn:hover {
+  background: #ff3742;
+}
+
 /* Sidebar 用户信息和退出登录样式 */
 .sidebar-footer {
   position: absolute;
@@ -520,16 +531,6 @@ body {
 .sidebar .nav {
   flex: 1;
   padding-bottom: 80px; /* 为footer留出空间 */
-}
-  font-size: 16px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.remove-scene-btn:hover {
-  background: #ff3742;
 }
 
 /* 移除按钮样式 */
@@ -651,9 +652,7 @@ body {
   .novel-settings .character-item { grid-template-columns: 56px 1fr; grid-template-areas: 'preview meta' 'preview actions'; }
 }
 
-<<<<<<< HEAD
 /* 漫画生成相关样式 */
-=======
 /* 增强的进度显示样式 */
 .progress-container.enhanced {
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
@@ -754,7 +753,6 @@ body {
 .generation-tips p:last-child {
   margin-bottom: 0;
 }
->>>>>>> 61fac845b79edacab33f62b90c5b7868d4e03ab4
 .comic-generation {
   margin-top: 20px;
   padding: 20px;
@@ -1390,10 +1388,10 @@ button.loading::after {
 .profile-header .header-left { display:flex; align-items: baseline; gap: 10px; }
 .profile-header .sub { color: var(--text-2); font-size: 12px; }
 .profile-actions { display:flex; align-items:center; gap: 8px; }
-.profile-actions button { border: 1px solid var(--border); background: transparent; color: var(--text-2); border-radius: 8px; padding: 6px 12px; cursor: pointer; transition: all 0.2s ease; }
-.profile-actions button:hover { background: var(--bg-soft); color: var(--text); }
-.profile-actions button.danger { border-color: #e15241; color: #e15241; }
-.profile-actions button.danger:hover { background: rgba(225,82,65,0.12); }
+.profile-actions button { border: 1px solid var(--border); background: var(--bg-soft); color: var(--text); border-radius: 8px; padding: 6px 12px; cursor: pointer; transition: all 0.2s ease; }
+.profile-actions button:hover { background: var(--bg); }
+.profile-actions button.danger { border-color: var(--border); color: var(--text); }
+.profile-actions button.danger:hover { border-color: #e15241; color: #e15241; background: rgba(225,82,65,0.08); }
 
 .card { border: 1px solid var(--border); border-radius: 12px; background: var(--bg-soft); overflow: hidden; }
 .card-header { display:flex; align-items:center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--border); }
@@ -1405,8 +1403,8 @@ button.loading::after {
 .profile-history .section-header { display:flex; align-items:center; justify-content: space-between; margin: 6px 0 8px; }
 .history-controls { display:flex; align-items:center; gap: 8px; }
 .history-controls input { width: 260px; border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 8px; padding: 6px 10px; }
-.history-controls button { border: 1px solid var(--border); background: transparent; color: var(--text-2); border-radius: 8px; padding: 6px 10px; cursor: pointer; transition: all 0.2s ease; }
-.history-controls button:hover { background: var(--bg); color: var(--text); }
+.history-controls button { border: 1px solid var(--border); background: var(--bg-soft); color: var(--text); border-radius: 8px; padding: 6px 10px; cursor: pointer; transition: all 0.2s ease; }
+.history-controls button:hover { background: var(--bg); }
 
 .history-list { display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .history-item { border: 1px solid var(--border); border-radius: 12px; background: var(--bg-soft); overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
@@ -1417,6 +1415,9 @@ button.loading::after {
 .history-subtitle { font-size: 12px; color: var(--text-2); }
 .history-chip { border: 1px solid var(--border); color: var(--text-2); border-radius: 999px; padding: 4px 8px; font-size: 12px; }
 .history-meta .meta-right { display:flex; align-items:center; gap: 8px; }
+.history-meta .meta-right button { border: 1px solid var(--border); background: var(--bg-soft); color: var(--text); border-radius: 8px; padding: 6px 10px; cursor: pointer; transition: all 0.2s ease; }
+.history-meta .meta-right button.danger { border-color: var(--border); color: var(--text); }
+.history-meta .meta-right button.danger:hover { border-color: #e15241; color: #e15241; background: rgba(225,82,65,0.08); }
 
 button.danger { border:none; background: #e15241; color:#fff; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
 button.danger.small { padding: 6px 10px; font-size: 12px; }
@@ -1426,5 +1427,37 @@ button.primary { border:none; background: var(--primary); color:#fff; border-rad
 .load-more button { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 8px; padding: 8px 12px; cursor: pointer; transition: all 0.2s ease; }
 .load-more button:hover { background: var(--bg-soft); }
 
-.profile-history-detail .card-header .actions { display:flex; align-items:center; gap: 8px; }
+.profile-history-detail .card-header .actions { display:flex; gap: 8px; }
+.profile-history-detail .card-header .actions button { border: 1px solid var(--border); background: var(--bg-soft); color: var(--text); border-radius: 8px; padding: 6px 12px; cursor: pointer; transition: all 0.2s ease; }
+.profile-history-detail .card-header .actions button:hover { background: var(--bg); }
+.profile-history-detail .card-header .actions .primary { border-color: var(--primary); color: var(--primary); }
+.profile-history-detail .card-header .actions .primary:hover { background: rgba(75,107,255,0.08); }
+.profile-history-detail .card-header .actions .danger { border-color: var(--border); color: var(--text); }
+.profile-history-detail .card-header .actions .danger:hover { border-color: #e15241; color: #e15241; background: rgba(225,82,65,0.08); }
 .profile-history-detail .image-grid.completed img { border-radius: 8px; }
+
+/* 图片大图查看器 */
+.image-viewer { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; z-index: 9999; padding: 20px; }
+.viewer-card { width: min(92vw, 1080px); max-height: 88vh; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: grid; grid-template-columns: 1fr 360px; position: relative; }
+.viewer-image { background: var(--bg); display:flex; align-items:center; justify-content:center; }
+.viewer-image img { width: 100%; height: 100%; object-fit: contain; }
+.viewer-meta { padding: 16px; display:flex; flex-direction: column; gap: 10px; border-left: 1px solid var(--border); }
+.viewer-meta h4 { margin: 0; font-size: 16px; color: var(--text); }
+.viewer-desc { margin: 0; font-size: 14px; color: var(--text-2); }
+.viewer-desc.muted { color: var(--text-2); opacity: 0.8; }
+.viewer-actions { display:flex; gap: 8px; margin-top: 6px; }
+.viewer-actions button { border: 1px solid var(--border); background: var(--bg-soft); color: var(--text); border-radius: 8px; padding: 6px 12px; cursor: pointer; transition: all 0.2s ease; }
+.viewer-actions button:hover { background: var(--bg); }
+.viewer-close { position: absolute; top: 8px; right: 8px; border: 1px solid var(--border); background: var(--bg-soft); color: var(--text); border-radius: 8px; padding: 4px 8px; cursor: pointer; }
+.viewer-close:hover { background: var(--bg); }
+
+.viewer-subsection { margin-top: 8px; }
+.viewer-subsection h5 { margin: 0 0 6px 0; font-size: 13px; color: var(--text); }
+.viewer-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.viewer-list li { display: flex; gap: 6px; font-size: 13px; color: var(--text-2); }
+.viewer-list li strong { color: var(--text); font-weight: 600; }
+
+@media (max-width: 860px) {
+  .viewer-card { grid-template-columns: 1fr; max-height: 90vh; }
+  .viewer-meta { border-left: none; border-top: 1px solid var(--border); }
+}

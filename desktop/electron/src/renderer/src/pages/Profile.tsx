@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+﻿import React, { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@renderer/contexts/AuthContext'
 
 // 简单的URL清洗（去除首尾引号与空格）
@@ -47,8 +47,9 @@ const ProfilePage: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [history, setHistory] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [selected, setSelected] = useState<{ processId: string; images: { id: string; url: string }[] } | null>(null)
-
+  const [selected, setSelected] = useState<{ processId: string; title?: string; description?: string; characters?: Record<string, string>; environments?: Record<string, string>; images: { id: string; url: string; sceneIndex?: number; description?: string }[] } | null>(null)
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null)
+  
   // 预览图缓存，减少重复请求
   const [previewCache, setPreviewCache] = useState<Record<string, string>>({})
 
@@ -102,14 +103,29 @@ const ProfilePage: React.FC = () => {
       if (!resp?.ok) throw new Error('获取历史详情失败')
       const record = resp?.data?.history
       const source: any[] = Array.isArray(record?.comic_results) ? record.comic_results : []
+      const scenesDetail: string[] = Array.isArray(record?.llm_result?.scenes_detail) ? record.llm_result.scenes_detail : []
+      const characters: Record<string, string> = record?.llm_result?.character_consistency || {}
+      const environments: Record<string, string> = record?.llm_result?.environment_consistency || {}
 
       const mapped = source.map((item: any, idx: number) => ({
         id: `img-${idx + 1}`,
-        rawUrl: sanitizeUrl(item?.image_url || item?.url || item?.imageUrl || '')
+        rawUrl: sanitizeUrl(item?.image_url || item?.url || item?.imageUrl || ''),
+        sceneIndex: (item?.scene_index ?? idx + 1),
+        description: scenesDetail[idx] || ''
       }))
 
-      const proxied = await Promise.all(mapped.map(async m => ({ id: m.id, url: await proxyImage(m.rawUrl) })))
-      setSelected({ processId, images: proxied })
+      const proxied = await Promise.all(mapped.map(async m => {
+        try {
+          const p: any = await (window as any).api.invokeBackend('image/proxy', { url: m.rawUrl })
+          const url = p?.ok && p?.data?.dataUrl ? p.data.dataUrl : m.rawUrl
+          return { id: m.id, url, sceneIndex: m.sceneIndex, description: m.description }
+        } catch (e) {
+          console.error('代理图片失败，回退为原始URL:', e)
+          return { id: m.id, url: m.rawUrl, sceneIndex: m.sceneIndex, description: m.description }
+        }
+      }))
+      setSelected({ processId, title: record?.title, description: record?.description, characters, environments, images: proxied })
+      setViewerIndex(null)
     } catch (e) {
       console.error('获取历史详情失败:', e)
       setError('获取历史详情失败')
@@ -327,12 +343,53 @@ const ProfilePage: React.FC = () => {
           </div>
           <div className="card-body">
             <div className="image-grid completed">
-              {selected.images.map(img => (
-                <img key={img.id} src={img.url} alt="" referrerPolicy="no-referrer" />
+              {selected.images.map((img, idx) => (
+                <img key={img.id} src={img.url} alt={img.description || ''} referrerPolicy="no-referrer" onClick={() => setViewerIndex(idx)} />
               ))}
             </div>
           </div>
         </section>
+      )}
+      {selected && viewerIndex !== null && (
+        <div className="image-viewer" onClick={(e) => { if (e.target === e.currentTarget) setViewerIndex(null) }}>
+          <div className="viewer-card">
+            <div className="viewer-image">
+              <img src={selected.images[viewerIndex].url} alt={selected.images[viewerIndex].description || ''} referrerPolicy="no-referrer" />
+            </div>
+            <div className="viewer-meta">
+              <h4>场景 {selected.images[viewerIndex].sceneIndex ?? viewerIndex + 1}</h4>
+              {selected.images[viewerIndex].description ? (
+                <p className="viewer-desc">{selected.images[viewerIndex].description}</p>
+              ) : (
+                <p className="viewer-desc muted">暂无场景介绍</p>
+              )}
+              {selected.characters && Object.keys(selected.characters).length > 0 && (
+                <div className="viewer-subsection">
+                  <h5>人物设定</h5>
+                  <ul className="viewer-list">
+                    {Object.entries(selected.characters).slice(0, 4).map(([name, desc]) => (
+                      <li key={name}><strong>{name}：</strong><span>{desc}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {selected.environments && Object.keys(selected.environments).length > 0 && (
+                <div className="viewer-subsection">
+                  <h5>环境设定</h5>
+                  <ul className="viewer-list">
+                    {Object.entries(selected.environments).slice(0, 4).map(([env, desc]) => (
+                      <li key={env}><strong>{env}：</strong><span>{desc}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="viewer-actions">
+                <button onClick={() => setViewerIndex(null)}>关闭</button>
+              </div>
+            </div>
+            <button className="viewer-close" onClick={() => setViewerIndex(null)} aria-label="关闭">✕</button>
+          </div>
+        </div>
       )}
     </div>
   )
