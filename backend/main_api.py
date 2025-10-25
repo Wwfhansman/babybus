@@ -7,6 +7,8 @@ import json
 import hashlib
 import secrets
 from datetime import datetime
+import uuid
+from werkzeug.utils import secure_filename
 
 # 添加模块路径
 sys.path.append('./python_LLM')
@@ -34,6 +36,24 @@ from database import DatabaseManager
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# 添加头像配置
+app.config['AVATAR_FOLDER'] = 'avatars'
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
+app.config['MAX_AVATAR_SIZE'] = 2 * 1024 * 1024  # 2MB
+
+# 确保头像目录存在
+os.makedirs(app.config['AVATAR_FOLDER'], exist_ok=True)
+
+def allowed_file(filename):
+    """检查文件扩展名是否允许"""
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+def generate_avatar_filename(user_id, original_filename):
+    """生成头像文件名"""
+    ext = original_filename.rsplit('.', 1)[1].lower()
+    return f"avatar_{user_id}_{uuid.uuid4().hex[:8]}.{ext}"
 
 # 配置CORS，允许所有来源和所有方法
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"]}})
@@ -89,7 +109,7 @@ def safe_strip(value):
     return str(value).strip()
 
 
-# 用户认证相关的HTTP API
+# 修改注册接口，支持可选的头像
 @app.route('/api/register', methods=['POST', 'OPTIONS'])
 def register():
     """用户注册"""
@@ -109,6 +129,7 @@ def register():
         username = safe_strip(data.get('username'))
         password = data.get('password')
         email = safe_strip(data.get('email'))
+        # 注意：注册时通常不上传头像文件，这里只是预留字段
 
         print(f"注册请求: username='{username}', email='{email}'")
 
@@ -203,6 +224,136 @@ def logout():
         return jsonify({"error": f"登出失败: {str(e)}"}), 500
 
 
+@app.route('/api/avatar', methods=['POST', 'OPTIONS'])
+def upload_avatar():
+    """上传用户头像"""
+    if request.method == 'OPTIONS':
+        return '', 200
+
+    user = get_user_from_request()
+    if not user:
+        return jsonify({"error": "未认证"}), 401
+
+    try:
+        # 检查是否有文件
+        if 'avatar' not in request.files:
+            return jsonify({"error": "没有上传文件"}), 400
+
+        file = request.files['avatar']
+
+        # 检查文件名
+        if file.filename == '':
+            return jsonify({"error": "没有选择文件"}), 400
+
+        # 检查文件类型和大小
+        if not allowed_file(file.filename):
+            return jsonify({"error": "不支持的文件类型，仅支持 png, jpg, jpeg, gif"}), 400
+
+        # 检查文件大小
+        file.seek(0, os.SEEK_END)
+        file_length = file.tell()
+        file.seek(0)
+
+        if file_length > app.config['MAX_AVATAR_SIZE']:
+            return jsonify({"error": "文件太大，最大支持2MB"}), 400
+
+        # 生成安全的文件名
+        filename = generate_avatar_filename(user['id'], file.filename)
+        filepath = os.path.join(app.config['AVATAR_FOLDER'], filename)
+
+        # 保存文件
+        file.save(filepath)
+
+        # 如果用户有旧头像，删除旧文件
+        if user.get('avatar'):
+            old_avatar_path = os.path.join(app.config['AVATAR_FOLDER'], user['avatar'])
+            if os.path.exists(old_avatar_path):
+                try:
+                    os.remove(old_avatar_path)
+                except Exception as e:
+                    print(f"删除旧头像失败: {e}")
+
+        # 更新数据库
+        success = db.update_user_avatar(user['id'], filename)
+        if not success:
+            # 如果数据库更新失败，删除刚保存的文件
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            return jsonify({"error": "更新头像失败"}), 500
+
+        return jsonify({
+            "success": True,
+            "message": "头像上传成功",
+            "avatar_url": f"/api/avatar/{filename}"
+        })
+
+    except Exception as e:
+        print(f"上传头像异常: {str(e)}")
+        return jsonify({"error": f"上传失败: {str(e)}"}), 500
+
+
+@app.route('/api/avatar/<filename>', methods=['GET'])
+def get_avatar(filename):
+    """获取用户头像"""
+    try:
+        # 安全检查：确保文件名在avatars目录内
+        safe_filename = secure_filename(filename)
+        filepath = os.path.join(app.config['AVATAR_FOLDER'], safe_filename)
+
+        if not os.path.exists(filepath):
+            # 返回默认头像
+            default_avatar = os.path.join(app.config['AVATAR_FOLDER'], 'default.png')
+            if os.path.exists(default_avatar):
+                return send_file(default_avatar, mimetype='image/png')
+            else:
+                return jsonify({"error": "头像不存在"}), 404
+
+        # 根据文件扩展名设置MIME类型
+        ext = safe_filename.rsplit('.', 1)[1].lower()
+        mimetype = f"image/{ext}" if ext != 'jpg' else 'image/jpeg'
+
+        return send_file(filepath, mimetype=mimetype)
+
+    except Exception as e:
+        print(f"获取头像异常: {str(e)}")
+        return jsonify({"error": f"获取头像失败: {str(e)}"}), 500
+
+
+@app.route('/api/avatar', methods=['DELETE', 'OPTIONS'])
+def delete_avatar():
+    """删除用户头像（恢复默认）"""
+    if request.method == 'OPTIONS':
+        return '', 200
+
+    user = get_user_from_request()
+    if not user:
+        return jsonify({"error": "未认证"}), 401
+
+    try:
+        # 删除头像文件
+        if user.get('avatar'):
+            avatar_path = os.path.join(app.config['AVATAR_FOLDER'], user['avatar'])
+            if os.path.exists(avatar_path):
+                try:
+                    os.remove(avatar_path)
+                except Exception as e:
+                    print(f"删除头像文件失败: {e}")
+
+        # 更新数据库，将avatar字段设为NULL
+        success = db.update_user_avatar(user['id'], None)
+        if not success:
+            return jsonify({"error": "删除头像失败"}), 500
+
+        return jsonify({
+            "success": True,
+            "message": "头像删除成功"
+        })
+
+    except Exception as e:
+        print(f"删除头像异常: {str(e)}")
+        return jsonify({"error": f"删除失败: {str(e)}"}), 500
+
+# 修改获取用户信息的接口，包含头像URL
 @app.route('/api/profile', methods=['GET', 'OPTIONS'])
 def get_profile():
     """获取用户信息"""
@@ -213,11 +364,15 @@ def get_profile():
     if not user:
         return jsonify({"error": "未认证"}), 401
 
+    # 构建头像URL
+    avatar_url = f"/api/avatar/{user['avatar']}" if user.get('avatar') else None
+
     return jsonify({
         "user": {
             "id": user['id'],
             "username": user['username'],
             "email": user['email'],
+            "avatar": avatar_url,  # 添加头像URL
             "created_at": user['created_at'],
             "last_login": user['last_login']
         }
