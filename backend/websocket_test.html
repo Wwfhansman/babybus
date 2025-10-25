@@ -178,6 +178,78 @@
             border: 1px solid #cfc;
         }
 
+        /* 注册页面头像上传样式 */
+        .avatar-upload-register {
+            border: 2px dashed #e1e5e9;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            background: #f8f9fa;
+        }
+
+        /* 头像上传标签样式 */
+        .avatar-upload-label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 500;
+            color: #555;
+            cursor: default; /* 因为实际点击的是按钮，所以这里不需要指针 */
+        }
+
+        .avatar-preview-register {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 15px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 3px solid #e1e5e9;
+            background: #fff;
+        }
+
+        .avatar-preview-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
+        }
+
+        .avatar-default-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #666;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .avatar-upload-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+
+        .small-btn {
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+
+        .avatar-upload-hint {
+            font-size: 12px;
+            color: #999;
+            text-align: center;
+        }
+
+        .avatar-preview-register.has-image .avatar-default-text {
+            display: none;
+        }
+
+        .avatar-preview-register.has-image .avatar-preview-img {
+            display: block;
+        }
+
         /* 主应用界面样式 */
         .container {
             width: 100%;
@@ -909,6 +981,138 @@
         .hidden {
             display: none !important;
         }
+
+        /* 头像相关样式 */
+        .user-avatar-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-right: 15px;
+            cursor: pointer;
+        }
+
+        .user-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            object-fit: cover;
+            transition: all 0.3s ease;
+        }
+
+        .user-avatar:hover {
+            border-color: rgba(255, 255, 255, 0.6);
+            transform: scale(1.05);
+        }
+
+        .avatar-upload-tip {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 4px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .user-avatar-container:hover .avatar-upload-tip {
+            opacity: 1;
+        }
+
+        /* 头像上传模态框样式 */
+        .avatar-upload-section {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .current-avatar, .avatar-upload-options {
+            text-align: center;
+        }
+
+        .current-avatar h3, .avatar-upload-options h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .avatar-preview {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #e1e5e9;
+            margin: 0 auto;
+        }
+
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f2f5;
+        }
+
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: #e8f4fd;
+        }
+
+        .upload-placeholder {
+            color: #666;
+        }
+
+        .upload-hint {
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+        }
+
+        .upload-preview {
+            text-align: center;
+        }
+
+        .upload-preview h4 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .preview-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
+        .avatar-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            padding-top: 20px;
+            border-top: 1px solid #e1e5e9;
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .user-avatar {
+                width: 40px;
+                height: 40px;
+            }
+
+            .avatar-upload-tip {
+                display: none;
+            }
+
+            .preview-actions, .avatar-actions {
+                flex-direction: column;
+            }
+        }
     </style>
 </head>
 <body>
@@ -925,6 +1129,31 @@
                     <div class="form-group">
                         <label for="email">邮箱地址</label>
                         <input type="email" id="email" placeholder="请输入邮箱地址（可选）">
+                    </div>
+
+                    <!-- 改进版本：更好的可访问性 -->
+                    <div class="form-group">
+                        <div class="avatar-upload-register">
+                            <label for="avatarInputRegister" class="avatar-upload-label">
+                                <span>头像（可选）</span>
+                            </label>
+                            <div class="avatar-preview-register">
+                                <img id="avatarPreviewRegister" src="" alt="头像预览" class="avatar-preview-img">
+                                <div class="avatar-default-text">默认头像</div>
+                            </div>
+                            <div class="avatar-upload-controls">
+                                <button type="button" class="secondary-btn small-btn" onclick="document.getElementById('avatarInputRegister').click()">
+                                    选择图片
+                                </button>
+                                <button type="button" class="secondary-btn small-btn" onclick="resetAvatarPreview()">
+                                    重置
+                                </button>
+                                <input type="file" id="avatarInputRegister" accept="image/*" style="display: none;">
+                            </div>
+                            <div class="avatar-upload-hint">
+                                支持 JPG、PNG、GIF 格式，最大 2MB
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="form-group">
@@ -951,6 +1180,11 @@
             <h1>小说转连环画系统</h1>
             <p>将您的小说文本转换为精美的连环画</p>
             <div class="user-info">
+                <!-- 添加头像显示 -->
+                <div class="user-avatar-container">
+                    <img id="userAvatar" src="" alt="头像" class="user-avatar" onclick="openAvatarModal()">
+                    <div class="avatar-upload-tip">点击修改头像</div>
+                </div>
                 <span class="user-welcome">欢迎，<span id="usernameDisplay"></span></span>
                 <button onclick="showHistory()" class="header-button">历史记录</button>
                 <button onclick="logout()" class="header-button">退出登录</button>
@@ -1085,6 +1319,50 @@
         </div>
     </div>
 
+    <!-- 添加头像上传模态框 -->
+    <div id="avatarModal" class="modal-overlay hidden">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>修改头像</h2>
+                <button class="modal-close" onclick="closeAvatarModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="avatar-upload-section">
+                    <div class="current-avatar">
+                        <h3>当前头像</h3>
+                        <img id="currentAvatarDisplay" src="" alt="当前头像" class="avatar-preview">
+                    </div>
+
+                    <div class="avatar-upload-options">
+                        <h3>上传新头像</h3>
+                        <div class="upload-area" id="uploadArea">
+                            <div class="upload-placeholder">
+                                <div style="font-size: 48px; margin-bottom: 10px;">📷</div>
+                                <div>点击选择图片或拖拽到此处</div>
+                                <div class="upload-hint">支持 JPG、PNG、GIF 格式，最大 2MB</div>
+                            </div>
+                            <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
+                        </div>
+
+                        <div class="upload-preview hidden" id="uploadPreview">
+                            <h4>预览</h4>
+                            <img id="avatarPreview" src="" alt="预览" class="avatar-preview">
+                            <div class="preview-actions">
+                                <button class="secondary-btn" onclick="cancelUpload()">取消</button>
+                                <button class="primary-btn" onclick="uploadAvatar()">确认上传</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="avatar-actions">
+                        <button class="secondary-btn" onclick="removeAvatar()" id="removeAvatarBtn">移除头像</button>
+                        <button class="primary-btn" onclick="closeAvatarModal()">完成</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // JavaScript代码保持不变，只更新了与界面交互的部分
         // 用户状态管理
@@ -1097,13 +1375,19 @@
         let isConnected = false;
         let currentProcessId = null;
 
+        // 头像相关功能
+        let selectedAvatarFile = null;
+
+        // 注册页面头像上传相关变量
+        let registerAvatarFile = null;
+
         // 获取基础URL
         function getBaseUrl() {
             const serverAddress = document.getElementById('serverAddress').value || 'http://10.201.202.108:5000';
             return serverAddress.replace(/\/$/, '');
         }
 
-        // 页面加载时检查登录状态
+        // 修改页面加载函数，初始化注册头像上传
         window.addEventListener('load', function() {
             console.log('页面加载完成，检查登录状态');
             if (sessionToken) {
@@ -1115,6 +1399,9 @@
             }
 
             document.getElementById('authForm').addEventListener('submit', handleAuthSubmit);
+
+            // 初始化注册页面头像上传
+            initRegisterAvatarUpload();
         });
 
         // 显示认证界面
@@ -1139,7 +1426,69 @@
             }, 500);
         }
 
-        // 切换登录/注册模式
+        // 初始化注册页面头像上传
+        function initRegisterAvatarUpload() {
+            const avatarInput = document.getElementById('avatarInputRegister');
+            const avatarPreview = document.getElementById('avatarPreviewRegister');
+            const avatarPreviewContainer = document.querySelector('.avatar-preview-register');
+
+            avatarInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    handleRegisterAvatarSelect(e.target.files[0]);
+                }
+            });
+
+            // 设置默认头像预览
+            avatarPreview.src = `${getBaseUrl()}/api/avatar/default.png`;
+        }
+
+        // 处理注册页面头像选择
+        function handleRegisterAvatarSelect(file) {
+            console.log('选择注册头像文件:', file);
+
+            // 检查文件类型和大小
+            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+            const maxSize = 2 * 1024 * 1024; // 2MB
+
+            if (!allowedTypes.includes(file.type)) {
+                alert('请选择 JPG、PNG 或 GIF 格式的图片');
+                return;
+            }
+
+            if (file.size > maxSize) {
+                alert('图片大小不能超过 2MB');
+                return;
+            }
+
+            registerAvatarFile = file;
+
+            // 显示预览
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const avatarPreview = document.getElementById('avatarPreviewRegister');
+                const avatarPreviewContainer = document.querySelector('.avatar-preview-register');
+
+                avatarPreview.src = e.target.result;
+                avatarPreviewContainer.classList.add('has-image');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 重置注册页面头像预览
+        function resetAvatarPreview() {
+            const avatarInput = document.getElementById('avatarInputRegister');
+            const avatarPreview = document.getElementById('avatarPreviewRegister');
+            const avatarPreviewContainer = document.querySelector('.avatar-preview-register');
+
+            avatarInput.value = '';
+            avatarPreviewContainer.classList.remove('has-image');
+            registerAvatarFile = null;
+
+            // 重置为默认头像
+            avatarPreview.src = `${getBaseUrl()}/api/avatar/default.png`;
+        }
+
+        // 修改 toggleAuthMode 函数，重置头像预览
         function toggleAuthMode() {
             isRegisterMode = !isRegisterMode;
             const authTitle = document.getElementById('authTitle');
@@ -1162,6 +1511,9 @@
                 authSwitchText.textContent = '已有账号？';
                 authSwitchLink.textContent = '立即登录';
                 registerFields.style.display = 'block';
+
+                // 初始化注册头像预览
+                resetAvatarPreview();
             } else {
                 authTitle.textContent = '欢迎回来';
                 authSubtitle.textContent = '请登录您的账户继续使用';
@@ -1235,13 +1587,41 @@
             authMessage.classList.remove('hidden');
         }
 
-        // 用户注册
+        // 修改注册函数，支持头像上传
         async function register(username, password, email) {
             console.log('开始注册:', username);
 
             try {
                 const baseUrl = getBaseUrl();
-                const response = await fetch(`${baseUrl}/api/register`, {
+
+                // 如果有头像文件，先上传头像
+                let avatarUrl = null;
+                if (registerAvatarFile) {
+                    log('正在上传头像...', 'info');
+
+                    const formData = new FormData();
+                    formData.append('avatar', registerAvatarFile);
+
+                    const uploadResponse = await fetch(`${baseUrl}/api/avatar`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer ' + (sessionToken || 'temp') // 注册时可能还没有token
+                        },
+                        body: formData
+                    });
+
+                    if (uploadResponse.ok) {
+                        const uploadData = await uploadResponse.json();
+                        avatarUrl = uploadData.avatar_url;
+                        log('头像上传成功', 'success');
+                    } else {
+                        // 头像上传失败不影响注册
+                        console.warn('头像上传失败，继续注册');
+                    }
+                }
+
+                // 执行注册
+                const registerResponse = await fetch(`${baseUrl}/api/register`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1253,25 +1633,28 @@
                     })
                 });
 
-                console.log('注册响应状态:', response.status);
+                console.log('注册响应状态:', registerResponse.status);
 
                 // 检查响应内容类型
-                const contentType = response.headers.get('content-type');
+                const contentType = registerResponse.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
-                    const text = await response.text();
+                    const text = await registerResponse.text();
                     console.error('非JSON响应:', text.substring(0, 200));
-                    throw new Error(`服务器返回了非JSON响应: ${response.status} ${response.statusText}`);
+                    throw new Error(`服务器返回了非JSON响应: ${registerResponse.status} ${registerResponse.statusText}`);
                 }
 
-                const data = await response.json();
+                const data = await registerResponse.json();
                 console.log('注册响应数据:', data);
 
-                if (response.ok && data.success) {
+                if (registerResponse.ok && data.success) {
                     showAuthMessage('注册成功！请登录', 'success');
-                    // 清空表单
+
+                    // 清空表单和头像
                     document.getElementById('username').value = '';
                     document.getElementById('password').value = '';
                     document.getElementById('email').value = '';
+                    resetAvatarPreview();
+
                     // 切换到登录模式
                     setTimeout(() => {
                         toggleAuthMode();
@@ -1321,6 +1704,7 @@
 
                     // 更新界面
                     document.getElementById('usernameDisplay').textContent = currentUser.username;
+                    updateAvatarDisplay();
                     showMainApp();
                     showAuthMessage('登录成功！', 'success');
 
@@ -1353,6 +1737,7 @@
                     const data = await response.json();
                     currentUser = data.user;
                     document.getElementById('usernameDisplay').textContent = currentUser.username;
+                    updateAvatarDisplay();
                     showMainApp();
                     console.log('自动登录成功');
                     log('自动登录成功！正在连接服务器...', 'success');
@@ -1402,6 +1787,13 @@
 
             // 重置UI状态
             resetUI();
+
+            const logOutput = document.getElementById('logOutput');
+            logOutput.innerHTML = '';
+
+            // 重置头像显示
+            const userAvatar = document.getElementById('userAvatar');
+            userAvatar.src = 'https://avatars//defualt.png';
 
             // 显示登录界面
             showAuthSection();
@@ -1857,6 +2249,241 @@
                 description: description
             });
         }
+
+        // 打开头像模态框
+        function openAvatarModal() {
+            console.log('打开头像设置');
+            updateAvatarModal();
+            document.getElementById('avatarModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // 关闭头像模态框
+        function closeAvatarModal() {
+            console.log('关闭头像设置');
+            document.getElementById('avatarModal').classList.add('hidden');
+            document.body.style.overflow = '';
+            resetAvatarUpload();
+        }
+
+        // 更新头像模态框内容
+        function updateAvatarModal() {
+            const currentAvatarDisplay = document.getElementById('currentAvatarDisplay');
+            const userAvatar = document.getElementById('userAvatar');
+            const removeAvatarBtn = document.getElementById('removeAvatarBtn');
+
+            // 更新当前头像显示
+            if (currentUser && currentUser.avatar) {
+                const avatarUrl = `${getBaseUrl()}${currentUser.avatar}`;
+                currentAvatarDisplay.src = avatarUrl;
+                userAvatar.src = avatarUrl;
+                removeAvatarBtn.style.display = 'block';
+            } else {
+                currentAvatarDisplay.src = 'https://via.placeholder.com/120x120?text=暂无头像';
+                userAvatar.src = 'https://via.placeholder.com/50x50?text=头像';
+                removeAvatarBtn.style.display = 'none';
+            }
+        }
+
+        // 初始化头像上传功能
+        function initAvatarUpload() {
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('avatarFileInput');
+
+            // 点击上传区域
+            uploadArea.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            // 文件选择变化
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleFileSelect(e.target.files[0]);
+                }
+            });
+
+            // 拖拽功能
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) {
+                    handleFileSelect(e.dataTransfer.files[0]);
+                }
+            });
+        }
+
+        // 处理文件选择
+        function handleFileSelect(file) {
+            console.log('选择文件:', file);
+
+            // 检查文件类型和大小
+            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+            const maxSize = 2 * 1024 * 1024; // 2MB
+
+            if (!allowedTypes.includes(file.type)) {
+                log('请选择 JPG、PNG 或 GIF 格式的图片', 'error');
+                return;
+            }
+
+            if (file.size > maxSize) {
+                log('图片大小不能超过 2MB', 'error');
+                return;
+            }
+
+            selectedAvatarFile = file;
+
+            // 显示预览
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('avatarPreview').src = e.target.result;
+                document.getElementById('uploadPreview').classList.remove('hidden');
+                document.getElementById('uploadArea').classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+
+            log('已选择图片，点击"确认上传"应用新头像', 'info');
+        }
+
+        // 取消上传
+        function cancelUpload() {
+            resetAvatarUpload();
+            log('已取消图片选择', 'info');
+        }
+
+        // 重置上传状态
+        function resetAvatarUpload() {
+            selectedAvatarFile = null;
+            document.getElementById('avatarFileInput').value = '';
+            document.getElementById('uploadPreview').classList.add('hidden');
+            document.getElementById('uploadArea').classList.remove('hidden');
+        }
+
+        // 上传头像
+        async function uploadAvatar() {
+            if (!selectedAvatarFile) {
+                log('请先选择图片', 'error');
+                return;
+            }
+
+            try {
+                log('正在上传头像...', 'info');
+
+                const formData = new FormData();
+                formData.append('avatar', selectedAvatarFile);
+
+                const baseUrl = getBaseUrl();
+                const response = await fetch(`${baseUrl}/api/avatar`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + sessionToken
+                    },
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log('头像上传成功！', 'success');
+
+                    // 更新用户信息
+                    await updateUserProfile();
+
+                    // 重置上传状态
+                    resetAvatarUpload();
+                    closeAvatarModal();
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || '上传失败');
+                }
+            } catch (error) {
+                console.error('上传头像失败:', error);
+                log('上传头像失败: ' + error.message, 'error');
+            }
+        }
+
+        // 移除头像
+        async function removeAvatar() {
+            if (!confirm('确定要移除当前头像吗？')) {
+                return;
+            }
+
+            try {
+                log('正在移除头像...', 'info');
+
+                const baseUrl = getBaseUrl();
+                const response = await fetch(`${baseUrl}/api/avatar`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': 'Bearer ' + sessionToken
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log('头像移除成功！', 'success');
+
+                    // 更新用户信息
+                    await updateUserProfile();
+                    closeAvatarModal();
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || '移除失败');
+                }
+            } catch (error) {
+                console.error('移除头像失败:', error);
+                log('移除头像失败: ' + error.message, 'error');
+            }
+        }
+
+        // 更新用户信息（获取最新头像）
+        async function updateUserProfile() {
+            try {
+                const baseUrl = getBaseUrl();
+                const response = await fetch(`${baseUrl}/api/profile`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + sessionToken
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUser = data.user;
+                    updateAvatarDisplay();
+                }
+            } catch (error) {
+                console.error('更新用户信息失败:', error);
+            }
+        }
+
+        // 更新头像显示
+        function updateAvatarDisplay() {
+            const userAvatar = document.getElementById('userAvatar');
+            if (currentUser && currentUser.avatar) {
+                userAvatar.src = `${getBaseUrl()}${currentUser.avatar}`;
+            } else {
+                userAvatar.src = 'https://via.placeholder.com/50x50?text=头像';
+            }
+        }
+
+        // 在页面加载时初始化头像上传功能
+        window.addEventListener('load', function() {
+            console.log('页面加载完成，初始化头像功能');
+            initAvatarUpload();
+
+            // 如果已经登录，更新头像显示
+            if (currentUser) {
+                updateAvatarDisplay();
+            }
+        });
 
         // 原有的其他函数保持不变...
         function log(message, type = 'info') {
