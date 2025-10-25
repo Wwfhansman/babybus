@@ -43,7 +43,7 @@ async function proxyImage(url: string): Promise<string> {
 }
 
 const ProfilePage: React.FC = () => {
-  const { user, sessionToken, logout } = useAuth()
+  const { user, sessionToken, logout, verifySession } = useAuth()
   const [loading, setLoading] = useState(false)
   const [history, setHistory] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -58,6 +58,15 @@ const ProfilePage: React.FC = () => {
   const [limit] = useState(20)
   const [isMoreLoading, setIsMoreLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
+
+  // 头像相关状态与配置
+  const BACKEND_URL = 'http://139.224.101.91:5000'
+  const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null)
+  const [avatarLoading, setAvatarLoading] = useState(false)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
+  const [avatarViewerOpen, setAvatarViewerOpen] = useState(false)
+  const [selectedAvatarFile, setSelectedAvatarFile] = useState<File | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   const canLoad = useMemo(() => !!sessionToken, [sessionToken])
 
@@ -95,6 +104,32 @@ const ProfilePage: React.FC = () => {
     fetchHistory()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canLoad])
+
+  // 加载用户头像为 data:URL，优先使用后端 URL，失败回退到本地默认
+  useEffect(() => {
+    const loadAvatar = async () => {
+      if (!user) { setAvatarDataUrl(null); return }
+      setAvatarLoading(true)
+      setAvatarError(null)
+      try {
+        const remoteUrl = user.avatar ? `${BACKEND_URL}${user.avatar}` : `${BACKEND_URL}/api/avatar/default.png`
+        const resp: any = await (window as any).api.invokeBackend('image/proxy', { url: remoteUrl })
+        if (resp?.ok && resp?.data?.dataUrl) {
+          setAvatarDataUrl(resp.data.dataUrl)
+        } else {
+          const fallbackPath = 'c:\\Users\\Kris\\Desktop\\babybus\\backend\\avatars\\default.png'
+          const d = await (window as any).api.loadImageDataUrl(fallbackPath)
+          setAvatarDataUrl(d || null)
+        }
+      } catch (e) {
+        console.error('加载头像失败:', e)
+        setAvatarError('头像加载失败')
+      } finally {
+        setAvatarLoading(false)
+      }
+    }
+    loadAvatar()
+  }, [user?.avatar])
 
   const viewDetail = async (processId: string) => {
     try {
@@ -248,6 +283,58 @@ const ProfilePage: React.FC = () => {
     // 退出后 AuthGuard 会显示登录界面
   }
 
+  // 头像查看与上传交互
+  const openAvatarViewer = () => setAvatarViewerOpen(true)
+  const closeAvatarViewer = () => { setAvatarViewerOpen(false); setSelectedAvatarFile(null) }
+  const handleAvatarSelect: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+    const file = e.target.files?.[0] || null
+    setSelectedAvatarFile(file)
+  }
+  const uploadAvatar = async () => {
+    if (!selectedAvatarFile) {
+      alert('请选择要上传的图片文件')
+      return
+    }
+    if (!sessionToken) {
+      alert('请先登录后再上传头像')
+      return
+    }
+    setUploadingAvatar(true)
+    try {
+      const fd = new FormData()
+      fd.append('avatar', selectedAvatarFile)
+      const resp = await fetch(`${BACKEND_URL}/api/avatar`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        },
+        body: fd
+      })
+      const data = await resp.json()
+      if (!resp.ok) {
+        throw new Error(data?.error || '上传失败')
+      }
+      // 上传成功后刷新用户信息与头像
+      await verifySession?.()
+      const remoteUrl = data?.avatar_url ? `${BACKEND_URL}${data.avatar_url}` : `${BACKEND_URL}/api/avatar/default.png`
+      const p: any = await (window as any).api.invokeBackend('image/proxy', { url: remoteUrl })
+      let durl: string | null = null
+      if (p?.ok && p?.data?.dataUrl) {
+        durl = p.data.dataUrl
+      } else {
+        durl = await (window as any).api.loadImageDataUrl('c:\\Users\\Kris\\Desktop\\babybus\\backend\\avatars\\default.png')
+      }
+      setAvatarDataUrl(durl || null)
+      alert('头像上传成功')
+      setSelectedAvatarFile(null)
+    } catch (e) {
+      console.error('上传头像失败:', e)
+      alert(e instanceof Error ? e.message : '上传失败')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
   // 过滤后的展示列表
   const filtered = useMemo(() => {
     const q = filterText.trim().toLowerCase()
@@ -265,25 +352,64 @@ const ProfilePage: React.FC = () => {
       <header className="profile-header">
         <div className="header-left">
           <h2>个人中心</h2>
-          <span className="sub">欢迎，{user?.username || user?.id || '游客'}</span>
         </div>
         <div className="profile-actions">
           <button className="danger" onClick={handleLogout}>退出登录</button>
         </div>
       </header>
 
-      <section className="profile-info card">
-        <div className="card-header"><h3>账户信息</h3></div>
-        {user ? (
-          <div className="card-body">
-            <div className="info-row"><span>ID：</span><strong>{user.id}</strong></div>
-            {user.username && <div className="info-row"><span>用户名：</span><strong>{user.username}</strong></div>}
-            {user.email && <div className="info-row"><span>邮箱：</span><strong>{user.email}</strong></div>}
-          </div>
-        ) : (
-          <div className="card-body"><p>未登录或无法获取用户信息</p></div>
-        )}
-      </section>
+      <section className="profile-summary">
+         {user ? (
+           <div className="summary-body">
+             <div className="summary-left">
+               <div className="avatar-large" onClick={openAvatarViewer} title="点击查看大图并上传">
+                 {avatarLoading ? (
+                   <div className="avatar-skeleton" />
+                 ) : avatarDataUrl ? (
+                   <img src={avatarDataUrl} alt="用户头像" />
+                 ) : (
+                   <div className="avatar-default">默认头像</div>
+                 )}
+               </div>
+             </div>
+             <div className="summary-right">
+               <div className="user-title">{user.username || `用户 ${user.id}`}</div>
+               <div className="user-meta">
+                 <span>用户ID：{user.id}</span>
+                 {user.email && <span>邮箱：{user.email}</span>}
+               </div>
+               
+             </div>
+           </div>
+         ) : (
+           <div className="card-body"><p>未登录或无法获取用户信息</p></div>
+         )}
+ 
+         {avatarViewerOpen && (
+           <div className="image-viewer" onClick={(e) => { if (e.target === e.currentTarget) closeAvatarViewer() }}>
+             <div className="viewer-card small">
+               <div className="viewer-image">
+                 {avatarDataUrl ? (
+                   <img src={avatarDataUrl} alt="用户头像" />
+                 ) : (
+                   <div className="avatar-skeleton" style={{ height: 240 }} />
+                 )}
+               </div>
+               <div className="viewer-meta">
+                 <h4>头像</h4>
+                 <div className="viewer-actions">
+                   <input type="file" accept="image/*" onChange={handleAvatarSelect} />
+                   <button className="primary" disabled={!selectedAvatarFile || uploadingAvatar} onClick={uploadAvatar}>
+                     {uploadingAvatar ? '上传中...' : '上传新头像'}
+                   </button>
+                   <button onClick={closeAvatarViewer}>关闭</button>
+                 </div>
+               </div>
+               <button className="viewer-close" onClick={closeAvatarViewer} aria-label="关闭">✕</button>
+             </div>
+           </div>
+         )}
+       </section>
 
       <section className="profile-history">
         <div className="section-header">
@@ -308,7 +434,13 @@ const ProfilePage: React.FC = () => {
             {filtered.map((h: any) => (
               <div key={h.id || h.process_id} className="history-item">
                 <div className="preview" onClick={() => viewDetail(h.process_id)} title={`查看详情 ${h.process_id}`}>
-                  <img src={previewCache[h.process_id] || sanitizeUrl(h.preview_image || '')} alt="预览" referrerPolicy="no-referrer" />
+                  {previewCache[h.process_id] ? (
+                    <img src={previewCache[h.process_id]} alt="预览" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '12px', color: 'var(--text-2)' }}>
+                      加载中...
+                    </div>
+                  )}
                 </div>
                 <div className="history-meta">
                   <div className="meta-left">
