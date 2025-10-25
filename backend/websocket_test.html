@@ -1116,8 +1116,8 @@
     </style>
 </head>
 <body>
-    <!-- 登录/注册界面 -->
-    <div id="authSection">
+        <!-- 登录/注册界面 -->
+        <div id="authSection">
         <div class="auth-background"></div>
         <div class="auth-container">
             <div class="auth-header">
@@ -1129,31 +1129,6 @@
                     <div class="form-group">
                         <label for="email">邮箱地址</label>
                         <input type="email" id="email" placeholder="请输入邮箱地址（可选）">
-                    </div>
-
-                    <!-- 改进版本：更好的可访问性 -->
-                    <div class="form-group">
-                        <div class="avatar-upload-register">
-                            <label for="avatarInputRegister" class="avatar-upload-label">
-                                <span>头像（可选）</span>
-                            </label>
-                            <div class="avatar-preview-register">
-                                <img id="avatarPreviewRegister" src="" alt="头像预览" class="avatar-preview-img">
-                                <div class="avatar-default-text">默认头像</div>
-                            </div>
-                            <div class="avatar-upload-controls">
-                                <button type="button" class="secondary-btn small-btn" onclick="document.getElementById('avatarInputRegister').click()">
-                                    选择图片
-                                </button>
-                                <button type="button" class="secondary-btn small-btn" onclick="resetAvatarPreview()">
-                                    重置
-                                </button>
-                                <input type="file" id="avatarInputRegister" accept="image/*" style="display: none;">
-                            </div>
-                            <div class="avatar-upload-hint">
-                                支持 JPG、PNG、GIF 格式，最大 2MB
-                            </div>
-                        </div>
                     </div>
                 </div>
                 <div class="form-group">
@@ -1399,9 +1374,6 @@
             }
 
             document.getElementById('authForm').addEventListener('submit', handleAuthSubmit);
-
-            // 初始化注册页面头像上传
-            initRegisterAvatarUpload();
         });
 
         // 显示认证界面
@@ -1442,53 +1414,6 @@
             avatarPreview.src = `${getBaseUrl()}/api/avatar/default.png`;
         }
 
-        // 处理注册页面头像选择
-        function handleRegisterAvatarSelect(file) {
-            console.log('选择注册头像文件:', file);
-
-            // 检查文件类型和大小
-            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-            const maxSize = 2 * 1024 * 1024; // 2MB
-
-            if (!allowedTypes.includes(file.type)) {
-                alert('请选择 JPG、PNG 或 GIF 格式的图片');
-                return;
-            }
-
-            if (file.size > maxSize) {
-                alert('图片大小不能超过 2MB');
-                return;
-            }
-
-            registerAvatarFile = file;
-
-            // 显示预览
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const avatarPreview = document.getElementById('avatarPreviewRegister');
-                const avatarPreviewContainer = document.querySelector('.avatar-preview-register');
-
-                avatarPreview.src = e.target.result;
-                avatarPreviewContainer.classList.add('has-image');
-            };
-            reader.readAsDataURL(file);
-        }
-
-        // 重置注册页面头像预览
-        function resetAvatarPreview() {
-            const avatarInput = document.getElementById('avatarInputRegister');
-            const avatarPreview = document.getElementById('avatarPreviewRegister');
-            const avatarPreviewContainer = document.querySelector('.avatar-preview-register');
-
-            avatarInput.value = '';
-            avatarPreviewContainer.classList.remove('has-image');
-            registerAvatarFile = null;
-
-            // 重置为默认头像
-            avatarPreview.src = `${getBaseUrl()}/api/avatar/default.png`;
-        }
-
-        // 修改 toggleAuthMode 函数，重置头像预览
         function toggleAuthMode() {
             isRegisterMode = !isRegisterMode;
             const authTitle = document.getElementById('authTitle');
@@ -1511,9 +1436,6 @@
                 authSwitchText.textContent = '已有账号？';
                 authSwitchLink.textContent = '立即登录';
                 registerFields.style.display = 'block';
-
-                // 初始化注册头像预览
-                resetAvatarPreview();
             } else {
                 authTitle.textContent = '欢迎回来';
                 authSubtitle.textContent = '请登录您的账户继续使用';
@@ -1587,40 +1509,14 @@
             authMessage.classList.remove('hidden');
         }
 
-        // 修改注册函数，支持头像上传
+        // 修改注册函数，移除头像上传
         async function register(username, password, email) {
             console.log('开始注册:', username);
 
             try {
                 const baseUrl = getBaseUrl();
 
-                // 如果有头像文件，先上传头像
-                let avatarUrl = null;
-                if (registerAvatarFile) {
-                    log('正在上传头像...', 'info');
-
-                    const formData = new FormData();
-                    formData.append('avatar', registerAvatarFile);
-
-                    const uploadResponse = await fetch(`${baseUrl}/api/avatar`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': 'Bearer ' + (sessionToken || 'temp') // 注册时可能还没有token
-                        },
-                        body: formData
-                    });
-
-                    if (uploadResponse.ok) {
-                        const uploadData = await uploadResponse.json();
-                        avatarUrl = uploadData.avatar_url;
-                        log('头像上传成功', 'success');
-                    } else {
-                        // 头像上传失败不影响注册
-                        console.warn('头像上传失败，继续注册');
-                    }
-                }
-
-                // 执行注册
+                // 执行注册（不再上传头像）
                 const registerResponse = await fetch(`${baseUrl}/api/register`, {
                     method: 'POST',
                     headers: {
@@ -1649,11 +1545,10 @@
                 if (registerResponse.ok && data.success) {
                     showAuthMessage('注册成功！请登录', 'success');
 
-                    // 清空表单和头像
+                    // 清空表单
                     document.getElementById('username').value = '';
                     document.getElementById('password').value = '';
                     document.getElementById('email').value = '';
-                    resetAvatarPreview();
 
                     // 切换到登录模式
                     setTimeout(() => {
@@ -1702,6 +1597,9 @@
                     // 保存token到本地存储
                     localStorage.setItem('sessionToken', sessionToken);
 
+                    // 立即获取完整的用户信息（包括头像）
+                    await updateUserProfile();
+
                     // 更新界面
                     document.getElementById('usernameDisplay').textContent = currentUser.username;
                     updateAvatarDisplay();
@@ -1740,7 +1638,7 @@
                     updateAvatarDisplay();
                     showMainApp();
                     console.log('自动登录成功');
-                    log('自动登录成功！正在连接服务器...', 'success');
+                    log('自动登录成功！', 'success');
                 } else {
                     // token无效，清除本地存储
                     localStorage.removeItem('sessionToken');
@@ -2278,17 +2176,25 @@
                 currentAvatarDisplay.src = avatarUrl;
                 userAvatar.src = avatarUrl;
                 removeAvatarBtn.style.display = 'block';
+                console.log('更新模态框头像显示:', avatarUrl);
             } else {
-                currentAvatarDisplay.src = 'https://via.placeholder.com/120x120?text=暂无头像';
-                userAvatar.src = 'https://via.placeholder.com/50x50?text=头像';
+                const defaultAvatar = `${getBaseUrl()}/api/avatar/default.png`;
+                currentAvatarDisplay.src = defaultAvatar;
+                userAvatar.src = defaultAvatar;
                 removeAvatarBtn.style.display = 'none';
+                console.log('更新模态框为默认头像:', defaultAvatar);
             }
         }
 
-        // 初始化头像上传功能
+        // 确保 initAvatarUpload 函数存在
         function initAvatarUpload() {
             const uploadArea = document.getElementById('uploadArea');
             const fileInput = document.getElementById('avatarFileInput');
+
+            if (!uploadArea || !fileInput) {
+                console.error('找不到上传区域或文件输入元素');
+                return;
+            }
 
             // 点击上传区域
             uploadArea.addEventListener('click', () => {
@@ -2319,6 +2225,8 @@
                     handleFileSelect(e.dataTransfer.files[0]);
                 }
             });
+
+            console.log('头像上传功能初始化完成');
         }
 
         // 处理文件选择
@@ -2367,8 +2275,20 @@
             document.getElementById('uploadArea').classList.remove('hidden');
         }
 
+        // 添加调试函数
+        function debugAvatarUpload() {
+            console.log('=== 头像上传调试信息 ===');
+            console.log('selectedAvatarFile:', selectedAvatarFile);
+            console.log('sessionToken:', sessionToken ? '存在' : '不存在');
+            console.log('currentUser:', currentUser);
+            console.log('baseUrl:', getBaseUrl());
+            console.log('========================');
+        }
+
         // 上传头像
         async function uploadAvatar() {
+            debugAvatarUpload(); // 添加这行
+
             if (!selectedAvatarFile) {
                 log('请先选择图片', 'error');
                 return;
@@ -2389,8 +2309,25 @@
                     body: formData
                 });
 
-                if (response.ok) {
-                    const data = await response.json();
+                // 添加响应状态检查
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('上传失败响应:', errorText);
+                    throw new Error(`上传失败: ${response.status} ${response.statusText}`);
+                }
+
+                // 检查响应内容类型
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('非JSON响应:', text.substring(0, 200));
+                    throw new Error(`服务器返回了非JSON响应: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log('上传响应数据:', data);
+
+                if (data.success) {
                     log('头像上传成功！', 'success');
 
                     // 更新用户信息
@@ -2400,12 +2337,20 @@
                     resetAvatarUpload();
                     closeAvatarModal();
                 } else {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || '上传失败');
+                    throw new Error(data.error || '上传失败');
                 }
             } catch (error) {
                 console.error('上传头像失败:', error);
                 log('上传头像失败: ' + error.message, 'error');
+
+                // 显示更详细的错误信息
+                if (error.message.includes('401')) {
+                    log('认证失败，请重新登录', 'error');
+                } else if (error.message.includes('413')) {
+                    log('文件太大，请选择小于2MB的图片', 'error');
+                } else if (error.message.includes('400')) {
+                    log('文件格式不支持，请选择JPG、PNG或GIF格式', 'error');
+                }
             }
         }
 
@@ -2458,26 +2403,35 @@
                     const data = await response.json();
                     currentUser = data.user;
                     updateAvatarDisplay();
+                    console.log('用户信息更新成功，头像:', currentUser.avatar);
+                } else {
+                    console.error('获取用户信息失败:', response.status);
                 }
             } catch (error) {
                 console.error('更新用户信息失败:', error);
             }
         }
 
-        // 更新头像显示
+        // 在 updateAvatarDisplay 函数中添加更多调试信息
         function updateAvatarDisplay() {
             const userAvatar = document.getElementById('userAvatar');
+            console.log('updateAvatarDisplay 被调用，currentUser:', currentUser);
+
             if (currentUser && currentUser.avatar) {
-                // 如果用户有自定义头像，使用自定义头像
-                userAvatar.src = `${getBaseUrl()}${currentUser.avatar}`;
-                console.log('设置自定义头像:', `${getBaseUrl()}${currentUser.avatar}`);
+                const avatarUrl = `${getBaseUrl()}${currentUser.avatar}`;
+                userAvatar.src = avatarUrl;
+                console.log('设置自定义头像 URL:', avatarUrl);
+
+                // 添加加载成功和失败的监听器
+                userAvatar.onload = function() {
+                    console.log('头像加载成功:', avatarUrl);
+                };
             } else {
-                // 否则使用默认头像
-                userAvatar.src = `${getBaseUrl()}/api/avatar/default.png`;
-                console.log('设置默认头像:', `${getBaseUrl()}/api/avatar/default.png`);
+                const defaultAvatar = `${getBaseUrl()}/api/avatar/default.png`;
+                userAvatar.src = defaultAvatar;
+                console.log('设置默认头像 URL:', defaultAvatar);
             }
 
-            // 添加错误处理，如果头像加载失败，使用默认头像
             userAvatar.onerror = function() {
                 console.warn('头像加载失败，使用默认头像');
                 this.src = `${getBaseUrl()}/api/avatar/default.png`;

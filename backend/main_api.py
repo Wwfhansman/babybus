@@ -379,7 +379,7 @@ def get_profile():
     if not user:
         return jsonify({"error": "未认证"}), 401
 
-    # 构建头像URL
+    # 构建头像URL - 确保这里返回的是正确的路径
     avatar_url = f"/api/avatar/{user['avatar']}" if user.get('avatar') else None
 
     return jsonify({
@@ -387,7 +387,7 @@ def get_profile():
             "id": user['id'],
             "username": user['username'],
             "email": user['email'],
-            "avatar": avatar_url,  # 添加头像URL
+            "avatar": avatar_url,  # 这里应该是 "/api/avatar/filename.jpg" 格式
             "created_at": user['created_at'],
             "last_login": user['last_login']
         }
