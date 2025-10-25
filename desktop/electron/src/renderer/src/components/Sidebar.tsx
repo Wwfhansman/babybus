@@ -1,6 +1,7 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@renderer/contexts/AuthContext'
+import appLogoUrl from '@renderer/assets/app-logo.png'
 
 const NAVS = [
   {
@@ -22,8 +23,8 @@ const NAVS = [
     )
   },
   {
-    path: '/library',
-    label: '素材库',
+    path: '/community',
+    label: '社区',
     icon: (
       <svg viewBox="0 0 24 24">
         <path d="M4 5h16v14H4zM8 9h8" />
@@ -44,19 +45,28 @@ const NAVS = [
     label: '帮助',
     icon: (
       <svg viewBox="0 0 24 24">
-        <path d="M12 18h.01M12 6a4 4 0 0 1 4 4c0 2-2 3-3 4" />
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 17h.01" />
+        <path d="M9.5 9.5a2.5 2.5 0 1 1 3.9 2c-.9.7-1.4 1.2-1.4 2.1" />
       </svg>
     )
   }
 ]
 
 const Sidebar: React.FC<{ activePath?: string }> = ({ activePath }) => {
-  // 移除侧边栏底部用户信息展示与退出按钮，改由个人中心页承载
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('theme') as 'light' | 'dark') || 'dark')
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+  }, [theme])
+  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
+
   return (
     <div className="sidebar">
-      <div className="sidebar-title" style={{ display: 'none' }}>
-        导航
-      </div>
+      <Link to="/home" className="sidebar-brand" title="宝宝巴士·AI漫画">
+        <img src={appLogoUrl} alt="应用 Logo" className="brand-logo" />
+        <span className="brand-title">宝宝巴士·AI漫画</span>
+      </Link>
       <ul className="nav">
         {NAVS.map((n) => (
           <li key={n.path} className={activePath === n.path ? 'active' : ''}>
@@ -69,6 +79,29 @@ const Sidebar: React.FC<{ activePath?: string }> = ({ activePath }) => {
           </li>
         ))}
       </ul>
+      <div className="sidebar-footer">
+        <div className="footer-actions">
+          <button className="theme-toggle" onClick={toggleTheme} title="切换主题">
+            {theme === 'dark' ? (
+              <span>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                深色
+              </span>
+            ) : (
+              <span>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93 6.34 6.34M17.66 17.66 19.07 19.07M17.66 6.34 19.07 4.93M4.93 19.07 6.34 17.66"/></svg>
+                浅色
+              </span>
+            )}
+          </button>
+          <Link to="/settings" className="settings-link" title="设置">
+            <span className="icon" aria-hidden>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="8"/><line x1="4" y1="6" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="9" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="17"/><line x1="20" y1="14" x2="20" y2="3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="20" cy="16" r="2"/></svg>
+            </span>
+            <span className="label">设置</span>
+          </Link>
+        </div>
+      </div>
     </div>
   )
 }
