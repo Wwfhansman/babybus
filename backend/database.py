@@ -14,57 +14,59 @@ class DatabaseManager:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        # 用户表
+        # 用户表 - 添加 avatar 字段
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                email TEXT UNIQUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_login TIMESTAMP
-            )
-        ''')
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    email TEXT UNIQUE,
+                    avatar TEXT,  -- 新增头像字段，存储头像文件路径
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_login TIMESTAMP
+                )
+            ''')
 
         # 漫画历史记录表
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS comics_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                process_id TEXT UNIQUE NOT NULL,
-                novel_text TEXT NOT NULL,
-                llm_result TEXT NOT NULL,
-                comic_results TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                title TEXT,
-                description TEXT,
-                FOREIGN KEY (user_id) REFERENCES users (id)
-            )
-        ''')
+               CREATE TABLE IF NOT EXISTS comics_history (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   user_id INTEGER NOT NULL,
+                   process_id TEXT UNIQUE NOT NULL,
+                   novel_text TEXT NOT NULL,
+                   llm_result TEXT NOT NULL,
+                   comic_results TEXT NOT NULL,
+                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                   title TEXT,
+                   description TEXT,
+                   FOREIGN KEY (user_id) REFERENCES users (id)
+               )
+           ''')
 
         # 用户会话表（用于记住登录状态）
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS user_sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                session_token TEXT UNIQUE NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users (id)
-            )
-        ''')
+                CREATE TABLE IF NOT EXISTS user_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    session_token TEXT UNIQUE NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users (id)
+                )
+            ''')
 
         conn.commit()
         conn.close()
 
-    def create_user(self, username, password_hash, email=None):
+    # 在 create_user 方法中添加 avatar 参数
+    def create_user(self, username, password_hash, email=None, avatar=None):
         """创建新用户"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         try:
             cursor.execute(
-                "INSERT INTO users (username, password_hash, email) VALUES (?, ?, ?)",
-                (username, password_hash, email)
+                "INSERT INTO users (username, password_hash, email, avatar) VALUES (?, ?, ?, ?)",
+                (username, password_hash, email, avatar)
             )
             user_id = cursor.lastrowid
             conn.commit()
@@ -74,6 +76,7 @@ class DatabaseManager:
         finally:
             conn.close()
 
+    # 在 get_user_by_username 和 get_user_by_id 方法中添加 avatar 字段
     def get_user_by_username(self, username):
         """根据用户名获取用户"""
         conn = sqlite3.connect(self.db_path)
@@ -88,8 +91,9 @@ class DatabaseManager:
                 'username': user[1],
                 'password_hash': user[2],
                 'email': user[3],
-                'created_at': user[4],
-                'last_login': user[5]
+                'avatar': user[4],  # 新增
+                'created_at': user[5],
+                'last_login': user[6]
             }
         return None
 
@@ -107,10 +111,29 @@ class DatabaseManager:
                 'username': user[1],
                 'password_hash': user[2],
                 'email': user[3],
-                'created_at': user[4],
-                'last_login': user[5]
+                'avatar': user[4],  # 新增
+                'created_at': user[5],
+                'last_login': user[6]
             }
         return None
+
+    # 添加更新用户头像的方法
+    def update_user_avatar(self, user_id, avatar_path):
+        """更新用户头像"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "UPDATE users SET avatar = ? WHERE id = ?",
+                (avatar_path, user_id)
+            )
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"更新头像失败: {e}")
+            return False
+        finally:
+            conn.close()
 
     def update_user_login_time(self, user_id):
         """更新用户最后登录时间"""

@@ -152,7 +152,14 @@ app.whenReady().then(() => {
       try {
         const raw = await readFile(join(dir, f), 'utf-8')
         const n = JSON.parse(raw)
-        if (n && n.id && n.title && Array.isArray(n.chapters)) novels.push(n)
+        if (n && n.id && n.title && Array.isArray(n.chapters)) {
+          // Sanitize: do not auto-load saved sections to avoid pre-filling storyboard
+          const sanitizedChapters = (n.chapters || []).map((ch: any) => ({
+            ...ch,
+            sections: []
+          }))
+          novels.push({ ...n, chapters: sanitizedChapters })
+        }
       } catch {
         // ignore parse errors
       }
@@ -177,11 +184,31 @@ app.whenReady().then(() => {
   ipcMain.handle('novel:update', async (_e, novel: any) => {
     const dir = getNovelsDir()
     await mkdir(dir, { recursive: true })
-    const slug = toSlug(novel?.title || 'untitled')
     const id = String(novel?.id)
+
+    // 尝试读取现有文件以保留章节与分镜（避免因渲染端清空造成历史丢失）
+    let existing: any = null
+    try {
+      const files = await readdir(dir)
+      const currentFile = files.find((f) => f.toLowerCase().endsWith('.json') && f.startsWith(id + '__'))
+      if (currentFile) {
+        const raw = await readFile(join(dir, currentFile), 'utf-8')
+        existing = JSON.parse(raw)
+      }
+    } catch {}
+
+    const merged: any = {
+      ...(existing || {}),
+      ...novel,
+      // 章节采用现有内容，避免渲染端的sections空数组覆盖历史
+      chapters: Array.isArray(existing?.chapters) ? existing.chapters : novel.chapters
+    }
+
+    const slug = toSlug(merged?.title || 'untitled')
     const newPath = join(dir, `${id}__${slug}.json`)
-    await writeFile(newPath, JSON.stringify(novel ?? {}, null, 2), 'utf-8')
-    // Cleanup other files of same id with different slug
+    await writeFile(newPath, JSON.stringify(merged ?? {}, null, 2), 'utf-8')
+
+    // 清理同一ID的其他旧文件
     const files = await readdir(dir)
     for (const f of files) {
       if (!f.toLowerCase().endsWith('.json')) continue
