@@ -1793,7 +1793,7 @@
 
             // 重置头像显示
             const userAvatar = document.getElementById('userAvatar');
-            userAvatar.src = 'https://avatars//defualt.png';
+            userAvatar.src = `${getBaseUrl()}/api/avatar/default.png`;
 
             // 显示登录界面
             showAuthSection();
@@ -2468,10 +2468,20 @@
         function updateAvatarDisplay() {
             const userAvatar = document.getElementById('userAvatar');
             if (currentUser && currentUser.avatar) {
+                // 如果用户有自定义头像，使用自定义头像
                 userAvatar.src = `${getBaseUrl()}${currentUser.avatar}`;
+                console.log('设置自定义头像:', `${getBaseUrl()}${currentUser.avatar}`);
             } else {
-                userAvatar.src = 'https://via.placeholder.com/50x50?text=头像';
+                // 否则使用默认头像
+                userAvatar.src = `${getBaseUrl()}/api/avatar/default.png`;
+                console.log('设置默认头像:', `${getBaseUrl()}/api/avatar/default.png`);
             }
+
+            // 添加错误处理，如果头像加载失败，使用默认头像
+            userAvatar.onerror = function() {
+                console.warn('头像加载失败，使用默认头像');
+                this.src = `${getBaseUrl()}/api/avatar/default.png`;
+            };
         }
 
         // 在页面加载时初始化头像上传功能
