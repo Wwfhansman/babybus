@@ -22,31 +22,47 @@ body {
 }
 
 .sidebar {
-  width: 88px;
+  width: 220px;
   border-right: 1px solid var(--border);
   background: var(--bg-soft);
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
-.sidebar-title { padding: 8px; font-weight: 600; color: var(--text-2); display:none; }
-.nav { list-style: none; padding: 16px 0 12px; margin: 0; }
-.nav li { padding: 14px 0; }
-.nav li a { color: var(--text-2); text-decoration: none; display:flex; flex-direction:column; align-items:center; gap:8px; font-size: 12px; }
-.nav li a .icon { width: 24px; height: 24px; display:flex; align-items:center; justify-content:center; }
-.nav li a .icon svg { width: 24px; height: 24px; fill: currentColor; }
-.nav li a .label { display:block; font-size: 12px; }
-.nav li.active a, .nav li:hover a { color: var(--text); }
+/* 品牌区 */
+.sidebar-brand { display:flex; align-items:center; gap:10px; padding: 16px 12px; border-bottom: 1px solid var(--border); text-decoration: none; color: var(--text); }
+.sidebar-brand:hover { background: rgba(107, 140, 255, 0.06); }
+.brand-logo { width: 28px; height: 28px; border-radius: 8px; }
+.brand-title { font-weight: 700; letter-spacing: 0.4px; }
 
-/* 可选：整体下移一些 */
-.sidebar .nav { margin-top: 8px; }
+/* 导航改为横向图标+文字，圆润交互 */
+.nav { list-style: none; padding: 8px 8px 100px; margin: 0; flex: 1; }
+.nav li { padding: 0; }
+.nav li a { color: var(--text-2); text-decoration: none; display:flex; flex-direction:row; align-items:center; gap:10px; font-size: 14px; padding:10px 12px; border-radius: 10px; transition: all 0.2s ease; }
+.nav li a .icon { width: 22px; height: 22px; display:flex; align-items:center; justify-content:center; }
+.nav li a .icon svg { width: 22px; height: 22px; fill: currentColor; }
+.nav li a .label { display:block; font-size: 14px; }
+.nav li a:hover { background: rgba(107, 140, 255, 0.08); color: var(--text); }
+.nav li.active a { background: rgba(107, 140, 255, 0.18); color: var(--text); border: 1px solid var(--primary); }
+
+/* 底部区域样式 */
+.sidebar-footer { position: absolute; bottom: 0; left: 0; right: 0; padding: 12px; border-top: 1px solid var(--border); background: var(--bg-soft); }
+.footer-actions { display:flex; align-items:center; justify-content: space-between; gap: 8px; }
+.theme-toggle { border: none; background: transparent; color: var(--text-2); border-radius: 8px; padding: 6px 10px; cursor: pointer; display:flex; align-items:center; gap:8px; transition: color 0.2s ease, background 0.2s ease; }
+.theme-toggle:hover { color: var(--text); background: rgba(107, 140, 255, 0.08); }
+.settings-link { color: var(--text-2); text-decoration: none; display:flex; align-items:center; gap:8px; border: none; border-radius:8px; padding:6px 10px; transition: color 0.2s ease, background 0.2s ease; }
+.settings-link:hover { color: var(--text); background: rgba(107, 140, 255, 0.08); }
 
 .shell { display: flex; height: 100vh; }
 .content { flex: 1; display: flex; flex-direction: column; }
-.topbar { height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--bg-soft); }
-.brand { font-weight: 700; letter-spacing: 0.5px; }
+/* 移除顶部栏后，主视图直接顶到顶部 */
+/* .topbar 已不再使用 */
+
 .btn-switch { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 8px; padding: 6px 10px; }
 .view { flex: 1; overflow: auto; }
 
-.create-layout { display: grid; grid-template-columns: 24px 3fr 3fr 4fr; height: calc(100vh - 56px); position: relative; }
+.create-layout { display: grid; grid-template-columns: 24px 3fr 3fr 4fr; height: 100vh; position: relative; }
 .panel { border-right: 1px solid var(--border); padding: 16px; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 
 /* 抽屉（点击展开保持、外部点击收回） */
