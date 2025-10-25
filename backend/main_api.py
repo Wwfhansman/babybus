@@ -300,13 +300,28 @@ def get_avatar(filename):
         safe_filename = secure_filename(filename)
         filepath = os.path.join(app.config['AVATAR_FOLDER'], safe_filename)
 
+        # 如果是请求默认头像且文件不存在，返回默认图像
+        if safe_filename == 'default.png' and not os.path.exists(filepath):
+            # 创建一个简单的默认头像
+            from PIL import Image, ImageDraw
+            img = Image.new('RGB', (100, 100), color='#667eea')
+            d = ImageDraw.Draw(img)
+            d.text((10, 40), "默认头像", fill='white')
+            img.save(filepath, 'PNG')
+
         if not os.path.exists(filepath):
             # 返回默认头像
             default_avatar = os.path.join(app.config['AVATAR_FOLDER'], 'default.png')
             if os.path.exists(default_avatar):
                 return send_file(default_avatar, mimetype='image/png')
             else:
-                return jsonify({"error": "头像不存在"}), 404
+                # 创建默认头像
+                from PIL import Image, ImageDraw
+                img = Image.new('RGB', (100, 100), color='#667eea')
+                d = ImageDraw.Draw(img)
+                d.text((10, 40), "默认头像", fill='white')
+                img.save(default_avatar, 'PNG')
+                return send_file(default_avatar, mimetype='image/png')
 
         # 根据文件扩展名设置MIME类型
         ext = safe_filename.rsplit('.', 1)[1].lower()
@@ -364,7 +379,7 @@ def get_profile():
     if not user:
         return jsonify({"error": "未认证"}), 401
 
-    # 构建头像URL
+    # 构建头像URL - 确保这里返回的是正确的路径
     avatar_url = f"/api/avatar/{user['avatar']}" if user.get('avatar') else None
 
     return jsonify({
@@ -372,7 +387,7 @@ def get_profile():
             "id": user['id'],
             "username": user['username'],
             "email": user['email'],
-            "avatar": avatar_url,  # 添加头像URL
+            "avatar": avatar_url,  # 这里应该是 "/api/avatar/filename.jpg" 格式
             "created_at": user['created_at'],
             "last_login": user['last_login']
         }
