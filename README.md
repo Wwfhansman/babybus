@@ -23,9 +23,9 @@ demo演示视频链接：【大学生5天开发AI漫画应用demo——七牛云
 ```mermaid
 flowchart LR
 U[用户] --> E[Electron 应用]
-E --> R[React 渲染器]\n(Home/Create/Community/Profile/Settings)
-E --> P[Preload\nContextBridge 受限 API]
-R <-->|HTTP/WS| B[后端服务\n(阿里云 FastAPI + Socket.IO)]
+E --> R[React 渲染器<br/>(Home/Create/Community/Profile/Settings)]
+E --> P[Preload<br/>ContextBridge 受限 API]
+R <-->|HTTP/WS| B[后端服务<br/>(阿里云 FastAPI + Socket.IO)]
 B --> DB[(数据库/SQLite)]
 B --> ST[(素材/生成资源存储)]
 CDN[静态资源/CDN] --> R
@@ -36,8 +36,8 @@ Nginx[Nginx/反向代理] --> B
 ```mermaid
 flowchart TB
 subgraph Electron
-  M[主进程\n创建窗口/托管生命周期]
-  PL[预加载脚本 preload\n暴露受限 API]
+  M[主进程<br/>创建窗口/托管生命周期]
+  PL[预加载脚本 preload<br/>暴露受限 API]
   RN[渲染进程 React]
 end
 RN -->|ipcRenderer.invoke| PL -->|ipcMain.handle| M
