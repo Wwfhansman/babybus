@@ -1,0 +1,131 @@
+/* 设置页面样式（精致版），与全局主题变量保持一致 */
+
+.settings-page {
+  padding: 24px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.settings-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.settings-header h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.settings-header p {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.save-hint {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--primary);
+}
+
+/* 顶部分页（胶囊页签） */
+.settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-soft);
+  margin-bottom: 12px;
+}
+
+.settings-tab {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.settings-tab:hover {
+  color: var(--text);
+  background: rgba(107, 140, 255, 0.08);
+}
+
+.settings-tab.active {
+  color: var(--text);
+  border-color: var(--primary);
+  background: rgba(107, 140, 255, 0.12);
+}
+
+.settings-body { display: block; }
+
+/* 分页内的卡片区块 */
+.settings-section {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-soft);
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+
+.section-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+/* 表单布局与控件 */
+.form-row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.form-row label { color: var(--text); }
+
+.controls { display: flex; flex-direction: column; gap: 6px; }
+.controls small { color: var(--text-2); }
+
+select, input[type="checkbox"], input[type="range"], button, .link-btn { font: inherit; }
+
+select, input[type="range"], button, .link-btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+button { cursor: pointer; }
+.link-btn { display: inline-block; text-decoration: none; text-align: center; }
+
+/* 分页控制条 */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.pager-indicator { color: var(--text-2); }
+
+.pager button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* 自适应：窄屏单列 */
+@media (max-width: 640px) {
+  .form-row { grid-template-columns: 1fr; }
+}
