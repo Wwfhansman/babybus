@@ -8,6 +8,7 @@ import ProfilePage from '@renderer/pages/Profile'
 import CommunityPage from '@renderer/pages/Community'
 import HelpPage from '@renderer/pages/Help'
 import SettingsPage from '@renderer/pages/Settings'
+import HomePage from '@renderer/pages/Home'
 
 const PagePlaceholder = ({ title }: { title: string }) => (
   <div className="page-placeholder">
@@ -49,8 +50,8 @@ const Shell: React.FC = () => {
         <div className="content">
           <div className="view">
             <Routes>
-              <Route path="/" element={<Navigate to="/create" replace />} />
-              <Route path="/home" element={<PagePlaceholder title="主页" />} />
+              <Route path="/" element={<Navigate to="/home" replace />} />
+              <Route path="/home" element={<HomePage />} />
               <Route path="/create" element={<CreatePage />} />
               <Route path="/community" element={<CommunityPage />} />
               <Route path="/profile" element={<ProfilePage />} />
