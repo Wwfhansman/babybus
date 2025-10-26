@@ -50,7 +50,16 @@ const NAVS = [
         <path d="M9.5 9.5a2.5 2.5 0 1 1 3.9 2c-.9.7-1.4 1.2-1.4 2.1" />
       </svg>
     )
-  }
+  },
+  {
+    path: '/settings',
+    label: '设置',
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8.6-2.5a8 8 0 0 0 .1-1l2-1.5-2-3.5-2.3.5a8 8 0 0 0-1.7-1l-.3-2.4h-4l-.3 2.4a8 8 0 0 0-1.7 1l-2.3-.5-2 3.5 2 1.5a8 8 0 0 0-.1 1l-2 1.5 2 3.5 2.3-.5a8 8 0 0 0 1.7 1l.3 2.4h4l.3-2.4a8 8 0 0 0 1.7-1l2.3.5 2-3.5-2-1.5Z" />
+      </svg>
+    )
+  },
 ]
 
 const Sidebar: React.FC<{ activePath?: string }> = ({ activePath }) => {
@@ -61,12 +70,41 @@ const Sidebar: React.FC<{ activePath?: string }> = ({ activePath }) => {
   }, [theme])
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
 
+  // 积分：默认1000，持久化到localStorage
+  const [credits, setCredits] = useState<number>(() => {
+    const saved = localStorage.getItem('userCredits')
+    return saved ? parseInt(saved, 10) || 1000 : 1000
+  })
+  useEffect(() => {
+    localStorage.setItem('userCredits', String(credits))
+  }, [credits])
+
+  // 充值浮层
+  const [showCreditsModal, setShowCreditsModal] = useState(false)
+  const [selectedRecharge, setSelectedRecharge] = useState<number | null>(null)
+  const PACKAGES = [
+    { price: 10, points: 100 },
+    { price: 30, points: 320 },
+    { price: 50, points: 600 },
+    { price: 100, points: 1300 },
+    { price: 200, points: 2700 }
+  ]
+
   return (
     <div className="sidebar">
       <Link to="/home" className="sidebar-brand" title="宝宝巴士·AI漫画">
         <img src={appLogoUrl} alt="应用 Logo" className="brand-logo" />
         <span className="brand-title">宝宝巴士·AI漫画</span>
       </Link>
+
+      {/* 积分模块：位于品牌与导航之间，推动选项下移 */}
+      <div className="points-card" onClick={() => setShowCreditsModal(true)} role="button" title="剩余积分">
+        <div className="points-row">
+          <span className="points-label">剩余积分</span>
+          <span className="points-value">{credits}</span>
+        </div>
+      </div>
+
       <ul className="nav">
         {NAVS.map((n) => (
           <li key={n.path} className={activePath === n.path ? 'active' : ''}>
@@ -79,6 +117,55 @@ const Sidebar: React.FC<{ activePath?: string }> = ({ activePath }) => {
           </li>
         ))}
       </ul>
+
+      {/* 充值与规则浮层（基础结构，交互在后续任务实现） */}
+      {showCreditsModal && (
+        <div className="points-overlay" onClick={() => setShowCreditsModal(false)}>
+          <div className="points-modal" onClick={(e) => e.stopPropagation()}>
+            <header className="points-modal-header">
+              <h4>积分规则与充值</h4>
+              <button className="close" onClick={() => setShowCreditsModal(false)} aria-label="关闭">×</button>
+            </header>
+            <div className="points-modal-body">
+              <div className="rules">
+                <ul>
+                  <li>一个分镜 50 积分</li>
+                </ul>
+              </div>
+              <div className="recharge">
+                <div className="options">
+                  {PACKAGES.map((pkg) => (
+                    <button
+                      key={pkg.price}
+                      className={`option ${selectedRecharge === pkg.points ? 'selected' : ''}`}
+                      onClick={() => setSelectedRecharge(pkg.points)}
+                    >
+                      <span className="price">¥{pkg.price}</span>
+                      <span className="pts">+{pkg.points} 积分</span>
+                      {pkg.price >= 100 ? <span className="badge">推荐</span> : null}
+                    </button>
+                  ))}
+                </div>
+                <div className="actions">
+                  <button
+                    className="primary confirm"
+                    disabled={!selectedRecharge}
+                    onClick={() => {
+                      if (!selectedRecharge) return
+                      setCredits((prev) => prev + selectedRecharge)
+                      setShowCreditsModal(false)
+                      setSelectedRecharge(null)
+                    }}
+                  >
+                    确定充值
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="sidebar-footer">
         <div className="footer-actions">
           <button className="theme-toggle" onClick={toggleTheme} title="切换主题">
@@ -94,12 +181,7 @@ const Sidebar: React.FC<{ activePath?: string }> = ({ activePath }) => {
               </span>
             )}
           </button>
-          <Link to="/settings" className="settings-link" title="设置">
-            <span className="icon" aria-hidden>
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="8"/><line x1="4" y1="6" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="9" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="17"/><line x1="20" y1="14" x2="20" y2="3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="20" cy="16" r="2"/></svg>
-            </span>
-            <span className="label">设置</span>
-          </Link>
+          {/* 删除底部设置入口，仅保留主题切换 */}
         </div>
       </div>
     </div>

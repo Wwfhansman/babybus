@@ -1401,7 +1401,8 @@ button.loading::after {
 /* Profile page styles */
 .profile-page { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
 .profile-header { display:flex; align-items:center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
-.profile-header .header-left { display:flex; align-items: baseline; gap: 10px; }
+.profile-header .header-left { display:flex; align-items: baseline; gap: 8px; }
+.profile-header .profile-actions { display: flex; align-items: center; }
 .profile-header .sub { color: var(--text-2); font-size: 12px; }
 .profile-actions { display:flex; align-items:center; gap: 8px; }
 .profile-actions button { border: 1px solid var(--border); background: var(--bg-soft); color: var(--text); border-radius: 8px; padding: 6px 12px; cursor: pointer; transition: all 0.2s ease; }
@@ -1477,3 +1478,48 @@ button.primary { border:none; background: var(--primary); color:#fff; border-rad
   .viewer-card { grid-template-columns: 1fr; max-height: 90vh; }
   .viewer-meta { border-left: none; border-top: 1px solid var(--border); }
 }
+
+/* Profile summary (NetEase style) */
+.profile-summary { margin-top: 8px; }
+.profile-summary .summary-body { display: grid; grid-template-columns: 140px 1fr; gap: 16px; align-items: center; padding: 12px; }
+.profile-summary .summary-left { display: flex; flex-direction: column; align-items: center; }
+.avatar-large { width: 120px; height: 120px; border-radius: 50%; border: 1px solid var(--border); overflow: hidden; background: var(--bg-soft); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.avatar-large img { width: 100%; height: 100%; object-fit: cover; }
+.summary-right { display: flex; flex-direction: column; gap: 8px; }
+.user-title { font-size: 18px; font-weight: 700; }
+.user-meta { display: flex; align-items: center; gap: 16px; color: var(--text-2); font-size: 12px; }
+.user-actions { display: flex; align-items: center; gap: 8px; }
+
+/* Stable avatar viewer sizing */
+.viewer-card.small { grid-template-columns: 320px 1fr; }
+.viewer-card.small .viewer-image { width: 320px; height: 320px; }
+.viewer-card.small .viewer-image img { width: 100%; height: 100%; object-fit: cover; }
+.summary-actions { display: flex; gap: 8px; margin-top: 8px; }
+.summary-right { display: flex; flex-direction: column; gap: 8px; }
+.user-title { font-size: 18px; font-weight: 700; }
+.user-meta { display: flex; align-items: center; gap: 16px; color: var(--text-2); font-size: 12px; }
+.user-actions { display: flex; align-items: center; gap: 8px; }
+
+/* 积分模块样式 */
+.points-card { margin: 12px; padding: 12px; border: 1px solid var(--border); background: var(--bg); border-radius: 12px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; transition: all 0.2s ease; }
+.points-card:hover { background: var(--bg-soft); border-color: var(--primary); }
+.points-row { display: flex; align-items: center; justify-content: space-between; }
+.points-label { color: var(--text-2); font-size: 12px; }
+.points-value { color: var(--text); font-weight: 700; font-size: 16px; margin-right: 6px; display: inline-block; }
+.points-hint { color: var(--text-2); font-size: 12px; display: inline-block; }
+
+.points-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.22); display:flex; align-items:center; justify-content:center; z-index: 1000; }
+.points-modal { width: min(760px, 92vw); background: var(--bg); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.18); display:flex; flex-direction: column; }
+.points-modal-header { display:flex; align-items:center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.points-modal-header h4 { margin: 0; font-size: 16px; color: var(--text); }
+.points-modal-header .close { border:none; background: transparent; font-size: 20px; line-height: 20px; cursor: pointer; color: var(--text-2); }
+.points-modal-header .close:hover { color: var(--text); }
+.points-modal-body { padding: 12px 16px; display:flex; flex-direction: column; gap: 12px; }
+.points-modal .section-title { color: var(--text-2); font-size: 12px; margin-bottom: 6px; }
+.points-modal .rules ul { margin: 0; padding-left: 18px; color: var(--text-2); font-size: 13px; }
+.recharge .options { display:flex; flex-wrap: wrap; gap: 8px; }
+.recharge .option { border: 1px solid var(--border); background: var(--bg-soft); color: var(--text); border-radius: 8px; padding: 8px 12px; cursor: pointer; transition: all 0.2s ease; position: relative; }
+.recharge .option:hover { background: var(--bg); }
+.recharge .option.selected { border-color: var(--primary); background: rgba(107, 140, 255, 0.12); }
+.recharge .option .badge { position: absolute; top: -6px; right: -6px; background: var(--primary); color: #fff; border-radius: 6px; font-size: 10px; padding: 2px 6px; }
+.recharge .actions { margin-top: 8px; }
