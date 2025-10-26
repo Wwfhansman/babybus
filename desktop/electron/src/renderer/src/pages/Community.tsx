@@ -78,6 +78,10 @@ const CommunityPage: React.FC = () => {
         </div>
         <div className="hero-visual">
           <div className="blob" />
+          <div className="hero-slogan" aria-label="社区标语">
+            <div className="line-cn">文字跃然次元，AI 绘就万象。</div>
+            <div className="line-en">Words leap across dimensions, AI paints all visions.</div>
+          </div>
         </div>
       </section>
 

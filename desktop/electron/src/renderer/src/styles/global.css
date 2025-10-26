@@ -22,3 +22,50 @@ input, textarea { font-family: inherit; }
 
 /* 在主要滚动容器中稳定预留滚动条空间，避免布局抖动 */
 .novel-home, .novel-chapters, .chapters, .settings-body, .output-body, .viewer-card, .drawer-content, .storyboard-content { scrollbar-gutter: stable both-edges; }
+
+/* 长图容器样式：填充输出区宽度、可滚动，滚动条与全局一致 */
+.long-image-wrapper {
+  display: block;
+  padding: 12px;
+  max-height: 80vh;
+  overflow: auto;
+  scrollbar-gutter: stable both-edges;
+}
+
+.comic-long-container { width: 100%; }
+
+.comic-long-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: #fff;
+}
+
+/* 用户统计卡片样式 */
+.user-stats {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 88px;
+  background: #fff;
+}
+.stat-item .value {
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--text);
+}
+.stat-item .label {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 4px;
+}
