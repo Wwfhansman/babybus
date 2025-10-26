@@ -23,9 +23,9 @@ demo演示视频链接：【大学生5天开发AI漫画应用demo——七牛云
 ```mermaid
 flowchart LR
 U[用户] --> E[Electron 应用]
-E --> R[React 渲染器<br/>(Home/Create/Community/Profile/Settings)]
-E --> P[Preload<br/>ContextBridge 受限 API]
-R <-->|HTTP/WS| B[后端服务<br/>(阿里云 FastAPI + Socket.IO)]
+E --> R["React 渲染器<br/>Home / Create / Community / Profile / Settings"]
+E --> P["Preload<br/>ContextBridge 受限 API"]
+R <-->|HTTP/WS| B["后端服务<br/>阿里云 FastAPI + Socket.IO"]
 B --> DB[(数据库/SQLite)]
 B --> ST[(素材/生成资源存储)]
 CDN[静态资源/CDN] --> R
