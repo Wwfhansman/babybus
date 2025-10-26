@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { useAuth } from '@renderer/contexts/AuthContext'
+import ComicLongImage from '@renderer/components/ComicLongImage'
 
 // 简易数据结构与占位数据
 export type Section = { 
@@ -260,8 +261,7 @@ const NovelSettingsDialog: React.FC<{
               {(characters || []).map((c, idx) => (
                 <div key={idx} className="character-item">
                   <div className="preview">
--                    {c.imagePath ? (<img src={(c.imagePath.startsWith('file://') ? c.imagePath : ('file://' + c.imagePath))} alt={c.name} />) : (<div className="placeholder">无图</div>)}
-+                    {c.imagePath ? (<img src={(c.imagePath.startsWith('file://') ? c.imagePath : ('file://' + c.imagePath))} alt={c.name} />) : (<div className="placeholder">无图</div>)}
+                    {c.imagePath ? (<img src={(c.imagePath.startsWith('file://') ? c.imagePath : ('file://' + c.imagePath))} alt={c.name} />) : (<div className="placeholder">无图</div>)}
                   </div>
                   <div className="meta">
                     <input value={c.name} onChange={(e) => {
@@ -334,6 +334,7 @@ const CreatePage: React.FC = () => {
     error: undefined,
     message: undefined
   })
+  const [longImageDataUrl, setLongImageDataUrl] = useState<string | null>(null)
   const socketRef = useRef<Socket | null>(null)
 
   // 当选择章节变化时，同步本地状态
@@ -469,44 +470,64 @@ const CreatePage: React.FC = () => {
 
     // 移除：局部定义的 sanitizeUrl，改为使用模块级函数
     // 监听漫画生成完成事件
-    socket.on('comics_generation_complete', (data) => {
+    socket.on('comics_generation_complete', async (data) => {
       console.log('收到comics_generation_complete事件:', data)
-      const source = Array.isArray((data as any).comic_results)
-        ? (data as any).comic_results
-        : Array.isArray((data as any).images)
-          ? (data as any).images
-          : []
-      const images = source.map((item: any, idx: number) => ({
-        id: `img-${idx + 1}`,
-        url: sanitizeUrl(item?.image_url || item?.url || item?.imageUrl || ''),
-        sceneIndex: (item?.scene_index ?? idx + 1)
+      const source: any[] = Array.isArray(data?.comic_results) ? data.comic_results : (Array.isArray(data?.images) ? data.images : [])
+      const mapped = source.map((item: any, idx: number) => {
+        const raw = sanitizeUrl(item?.image_url || item?.url || item?.imageUrl || '')
+        return { id: `img-${idx + 1}`, rawUrl: raw, sceneIndex: (item?.scene_index ?? idx + 1) }
+      })
+    
+      // 主进程代理图片为 dataURL，绕开CORS与画布污染
+      const proxied = await Promise.all(mapped.map(async (m) => {
+        try {
+          const p: any = await (window as any).api.invokeBackend('image/proxy', { url: m.rawUrl })
+          const url = p?.ok && p?.data?.dataUrl ? p.data.dataUrl : m.rawUrl
+          return { id: m.id, url, sceneIndex: m.sceneIndex }
+        } catch (e) {
+          console.error('代理图片失败，回退为原始URL:', e)
+          return { id: m.id, url: m.rawUrl, sceneIndex: m.sceneIndex }
+        }
       }))
-      console.log('映射后的图片URL列表(前5项):', images.slice(0, 5).map(i => i.url))
+    
+      console.log('映射后的图片URL列表(前5项):', proxied.slice(0, 5).map(i => i.url))
       setComicGeneration(prev => ({
         ...prev,
         status: 'completed',
-        images,
+        images: proxied,
         message: '漫画生成完成！'
       }))
     })
 
     // 新增：监听完整流程完成事件
-    socket.on('full_process_complete', (data) => {
+    socket.on('full_process_complete', async (data) => {
       console.log('收到full_process_complete事件:', data)
-      const images = (data.comic_results || []).map((item: any, idx: number) => ({
-        id: `img-${idx + 1}`,
-        url: sanitizeUrl(item?.image_url || item?.url || item?.imageUrl || ''),
-        sceneIndex: (item?.scene_index ?? idx + 1)
+      const source: any[] = Array.isArray(data?.comic_results) ? data.comic_results : []
+      const mapped = source.map((item: any, idx: number) => {
+        const raw = sanitizeUrl(item?.image_url || item?.url || item?.imageUrl || '')
+        return { id: `img-${idx + 1}`, rawUrl: raw, sceneIndex: (item?.scene_index ?? idx + 1) }
+      })
+    
+      const proxied = await Promise.all(mapped.map(async (m) => {
+        try {
+          const p: any = await (window as any).api.invokeBackend('image/proxy', { url: m.rawUrl })
+          const url = p?.ok && p?.data?.dataUrl ? p.data.dataUrl : m.rawUrl
+          return { id: m.id, url, sceneIndex: m.sceneIndex }
+        } catch (e) {
+          console.error('代理图片失败，回退为原始URL:', e)
+          return { id: m.id, url: m.rawUrl, sceneIndex: m.sceneIndex }
+        }
       }))
-      console.log('映射后的图片URL列表(前5项):', images.slice(0, 5).map(i => i.url))
-
+    
+      console.log('映射后的图片URL列表(前5项):', proxied.slice(0, 5).map(i => i.url))
+    
       setComicGeneration(prev => ({
         ...prev,
         status: 'completed',
-        images,
+        images: proxied,
         progress: {
-          current: data.total_scenes || images.length || 0,
-          total: data.total_scenes || images.length || 0,
+          current: data.total_scenes || proxied.length || 0,
+          total: data.total_scenes || proxied.length || 0,
           percentage: 100
         },
         message: data.message || '漫画生成完成！'
@@ -516,19 +537,11 @@ const CreatePage: React.FC = () => {
     // 监听生成进度
     socket.on('full_process_progress', (data) => {
       console.log('收到进度更新:', data)
-      
-      const current = Number(data.step || data.current || 0)
-      const total = Number(data.total || 0)
-      const percentage = total > 0 ? Math.round((current / total) * 100) : 0
-
+      // 前端不展示进度条，仅保持“加载中”提示，不更新百分比
       setComicGeneration(prev => ({
         ...prev,
-        progress: {
-          current,
-          total,
-          percentage
-        },
-        message: data.message || '正在生成中...'
+        status: 'generating',
+        message: '加载中...'
       }))
     })
 
@@ -798,6 +811,25 @@ const CreatePage: React.FC = () => {
     }
   }
 
+  // 导出合成的长图为 PNG
+  const exportLongImage = async () => {
+    if (!longImageDataUrl) {
+      alert('长图尚未生成')
+      return
+    }
+    try {
+      const a = document.createElement('a')
+      a.href = longImageDataUrl
+      a.download = `${selectedChapter?.title || '漫画长图'}-${new Date().toISOString().slice(0, 10)}.png`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    } catch (e) {
+      console.error('导出长图失败:', e)
+      alert('导出长图失败，请重试')
+    }
+  }
+
   // 使用历史记录作为测试数据：读取最新一条并代理图片
   const loadHistoryTestData = async () => {
     try {
@@ -890,15 +922,16 @@ const CreatePage: React.FC = () => {
     
     console.log('WebSocket连接正常，发送生成请求...')
     
-    // 设置生成状态
+    // 设置生成状态（仅显示加载中，不显示进度）
     setComicGeneration(prev => ({
       ...prev,
       status: 'generating',
-      progress: { current: 1, total: 10, percentage: 10 },
+      progress: { current: 0, total: 0, percentage: 0 },
       images: [],
       error: undefined,
-      message: '正在生成漫画...'
+      message: '加载中...'
     }))
+    setLongImageDataUrl(null)
     
     // 发送生成请求
     socketRef.current.emit('start_comics_generation', { 
@@ -913,7 +946,6 @@ const CreatePage: React.FC = () => {
     (async () => {
       try {
         const list = await window.api.listNovels()
-        // 诊断：确认每章sections是否为空，避免加载时自动填充
         try {
           console.log('listNovels 加载结果（章节分镜计数）:', (list || []).map((n: any) => ({
             id: n?.id, title: n?.title,
@@ -921,10 +953,16 @@ const CreatePage: React.FC = () => {
           })))
         } catch {}
         setNovels(list as unknown as Novel[])
-        // 初次进入不自动选择小说与章节，保持为空等待手动选择
       } catch {}
     })()
   }, [])
+
+  // 开发测试：若没有生成结果，自动加载历史记录图片作为数据源
+  const historyLoadedRef = useRef(false)
+  useEffect(() => {
+    // 停止自动加载历史记录，改为仅使用当次生成的图片
+    // historyLoadedRef.current = true
+  }, [comicGeneration.status, comicGeneration.images])
 
   async function recognizeStoryboard() {
     if (!selectedChapter || !selectedNovelId) return
@@ -1318,6 +1356,7 @@ const CreatePage: React.FC = () => {
                 {(comicGeneration.status === 'idle' || comicGeneration.status === 'completed' || comicGeneration.status === 'error') && '生成漫画'}
               </button>
             <button disabled={comicGeneration.images.length === 0} onClick={exportComics}>导出</button>
+            <button disabled={!longImageDataUrl} onClick={exportLongImage}>导出长图</button>
             {/* 移除历史测试按钮，新增清空输出 */}
             <button onClick={() => {
               setComicGeneration(prev => ({
@@ -1328,6 +1367,7 @@ const CreatePage: React.FC = () => {
                 message: undefined,
                 progress: { current: 0, total: 0, percentage: 0 }
               }))
+              setLongImageDataUrl(null)
             }}>清空输出</button>
           </div>
         </header>
@@ -1358,94 +1398,30 @@ const CreatePage: React.FC = () => {
 
           {comicGeneration.status === 'generating' && (
             <div className="status-display">
-              <div className="status-icon loading">⚡</div>
-              <h4>正在生成漫画</h4>
-              <p>{comicGeneration.message}</p>
-              
-              {/* 增强的进度显示 */}
-              {comicGeneration.progress.total > 0 && (
-                <div className="progress-container enhanced">
-                  <div className="progress-info">
-                    <div className="progress-stats">
-                      <span className="current-step">步骤 {comicGeneration.progress.current}</span>
-                      <span className="total-steps">共 {comicGeneration.progress.total} 步</span>
-                      <span className="percentage">{comicGeneration.progress.percentage}%</span>
-                    </div>
-                  </div>
-                  
-                  <div className="progress-bar enhanced">
-                    <div 
-                      className="progress-fill animated" 
-                      style={{ width: `${comicGeneration.progress.percentage}%` }}
-                    ></div>
-                  </div>
-                  
-                  <div className="progress-details">
-                    <div className="time-estimate">
-                      <span>⏱️ 预计剩余时间: 计算中...</span>
-                    </div>
-                    <div className="generation-tips">
-                      <p>💡 AI正在为您精心绘制每一帧画面</p>
-                      <p>🎨 生成过程可能需要几分钟，请耐心等待</p>
-                      <p>🔄 如果长时间无响应，可以点击"取消生成"后重试</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {/* 显示已生成的图片 */}
-              {comicGeneration.images.length > 0 && (
-                <div className="image-grid">
-                  {comicGeneration.images.map((image) => (
-                    <img 
-                      key={image.id} 
-                      src={image.url} 
-                      alt=""
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        console.error('图片加载失败:', image.url)
-                        try {
-                          e.currentTarget.alt = '图片加载失败'
-                          e.currentTarget.style.opacity = '0.6'
-                          e.currentTarget.style.borderColor = 'var(--accent)'
-                        } catch {}
-                      }}
-                      onLoad={() => {
-                        console.log('图片加载成功:', image.url)
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
+              <div className="status-icon loading">🔄</div>
+              <h4>加载中...</h4>
+              <p>{comicGeneration.message || '正在生成，请稍候'}</p>
+              {/* 移除进度条与时间估算，仅保留转圈提示 */}
             </div>
           )}
 
+
+
           {comicGeneration.status === 'completed' && (
-            <div className="status-display">
-              <div className="status-icon">✅</div>
-              <h4>漫画生成完成</h4>
-              <p>共生成 {comicGeneration.images.length} 张图片</p>
-              <div className="image-grid completed">
-                {comicGeneration.images.map((image) => (
-                  <img 
-                    key={image.id} 
-                    src={image.url} 
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      console.error('图片加载失败:', image.url)
-                      try {
-                        e.currentTarget.alt = '图片加载失败'
-                        e.currentTarget.style.opacity = '0.6'
-                        e.currentTarget.style.borderColor = 'var(--accent)'
-                      } catch {}
-                    }}
-                    onLoad={() => {
-                      console.log('图片加载成功:', image.url)
-                    }}
-                  />
-                ))}
-              </div>
+            <div className="long-image-wrapper">
+              <ComicLongImage
+                images={comicGeneration.images}
+                fillParent
+                panelWidthRatio={0.96}
+                panelAspect={1.6}
+                skew={32}
+                bottomSkew={32}
+                gap={6}
+                borderWidth={1}
+                borderColor="#000000"
+                backgroundColor="#ffffff"
+                onReady={(dataUrl) => setLongImageDataUrl(dataUrl)}
+              />
             </div>
           )}
 

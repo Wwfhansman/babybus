@@ -378,12 +378,29 @@ const ProfilePage: React.FC = () => {
                  <span>用户ID：{user.id}</span>
                  {user.email && <span>邮箱：{user.email}</span>}
                </div>
-               
-             </div>
-           </div>
-         ) : (
-           <div className="card-body"><p>未登录或无法获取用户信息</p></div>
-         )}
+              <div className="user-stats">
+                <div className="stat-item">
+                  <div className="value">1,284</div>
+                  <div className="label">获赞</div>
+                </div>
+                <div className="stat-item">
+                  <div className="value">56</div>
+                  <div className="label">关注</div>
+                </div>
+                <div className="stat-item">
+                  <div className="value">340</div>
+                  <div className="label">粉丝</div>
+                </div>
+                <div className="stat-item">
+                  <div className="value">12</div>
+                  <div className="label">作品</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="card-body"><p>未登录或无法获取用户信息</p></div>
+        )}
  
          {avatarViewerOpen && (
            <div className="image-viewer" onClick={(e) => { if (e.target === e.currentTarget) closeAvatarViewer() }}>
