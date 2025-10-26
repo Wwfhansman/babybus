@@ -6,6 +6,8 @@ import Sidebar from '@renderer/components/Sidebar'
 import CreatePage from '@renderer/pages/Create'
 import ProfilePage from '@renderer/pages/Profile'
 import CommunityPage from '@renderer/pages/Community'
+import HelpPage from '@renderer/pages/Help'
+import SettingsPage from '@renderer/pages/Settings'
 
 const PagePlaceholder = ({ title }: { title: string }) => (
   <div className="page-placeholder">
@@ -52,8 +54,8 @@ const Shell: React.FC = () => {
               <Route path="/create" element={<CreatePage />} />
               <Route path="/community" element={<CommunityPage />} />
               <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/help" element={<PagePlaceholder title="帮助" />} />
-              <Route path="/settings" element={<PagePlaceholder title="设置" />} />
+              <Route path="/help" element={<HelpPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<PagePlaceholder title="未找到页面" />} />
             </Routes>
           </div>

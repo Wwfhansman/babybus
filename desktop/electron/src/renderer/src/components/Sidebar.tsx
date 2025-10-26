@@ -50,7 +50,16 @@ const NAVS = [
         <path d="M9.5 9.5a2.5 2.5 0 1 1 3.9 2c-.9.7-1.4 1.2-1.4 2.1" />
       </svg>
     )
-  }
+  },
+  {
+    path: '/settings',
+    label: '设置',
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8.6-2.5a8 8 0 0 0 .1-1l2-1.5-2-3.5-2.3.5a8 8 0 0 0-1.7-1l-.3-2.4h-4l-.3 2.4a8 8 0 0 0-1.7 1l-2.3-.5-2 3.5 2 1.5a8 8 0 0 0-.1 1l-2 1.5 2 3.5 2.3-.5a8 8 0 0 0 1.7 1l.3 2.4h4l.3-2.4a8 8 0 0 0 1.7-1l2.3.5 2-3.5-2-1.5Z" />
+      </svg>
+    )
+  },
 ]
 
 const Sidebar: React.FC<{ activePath?: string }> = ({ activePath }) => {
@@ -172,12 +181,7 @@ const Sidebar: React.FC<{ activePath?: string }> = ({ activePath }) => {
               </span>
             )}
           </button>
-          <Link to="/settings" className="settings-link" title="设置">
-            <span className="icon" aria-hidden>
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="8"/><line x1="4" y1="6" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="9" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="17"/></svg>
-            </span>
-            <span className="label">设置</span>
-          </Link>
+          {/* 删除底部设置入口，仅保留主题切换 */}
         </div>
       </div>
     </div>
